@@ -16,6 +16,8 @@ The source code is publicly viewable, but use of the software requires prior
 written permission from Zhejiang University or its duly authorized
 representative. See the LICENSE file for the governing terms.
 
-The separately distributed simulation database is subject to the terms stated
-in its Hugging Face dataset repository and is not automatically covered by the
-software terms in this repository.
+The separately distributed simulation database is likewise source-available
+with all rights reserved. It is subject to the custom, permission-required
+terms stated in its Hugging Face dataset repository and is not automatically
+covered by the software terms in this repository. Public availability of the
+database does not grant a right to use it.

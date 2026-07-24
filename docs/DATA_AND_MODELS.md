@@ -8,6 +8,11 @@ outputs and post-processed targets, not experimental plasma measurements. The
 code repository does not distribute the CLT solver or the raw output of every
 simulation campaign.
 
+The separately distributed database is source-available but is not open data.
+Copyright (c) 2026 Zhejiang University. All rights reserved. Use requires prior
+written permission from Zhejiang University or its duly authorized
+representative under the terms published with the Hugging Face dataset.
+
 The extraction scripts should be treated as the authoritative executable
 record of the transformations applied to the raw CLT layout. Coordinate shifts,
 axis swaps, field normalization, logarithmic transforms, and target-selection
@@ -44,9 +49,9 @@ CSV in `TMON-test_by_p0/` in this snapshot.
 
 The Task III training script expects a separate
 `Double_Tearing_Train_Database_by_p0.csv` manifest. The Hugging Face release
-must include the exact manifest used for training; the 195-row scalar Task I
-table should not be silently substituted for it. Verify a one-to-one mapping
-between the manifest and `selected_B9_633/` before publishing the dataset.
+contains the exact manifest used for training; the 195-row scalar Task I table
+is not a substitute for it. Each manifest entry has a corresponding field in
+`selected_B9_633/`.
 
 ## Variable glossary
 
@@ -58,10 +63,10 @@ normalizations.
 | ---------------------------------- | ------------------------------------------------------------------------------------------------------------- |
 | `p0`                             | Pressure-related equilibrium parameter read from the equilibrium profile table.                               |
 | `r1`, `r2`                     | Radial locations of the two crossings of the selected rational surface (`q = 2` in the extraction scripts). |
-| `s1`, `s2`                     | Local magnetic-shear values evaluated at`r1` and `r2`.                                                    |
-| `Wt_Inner_max`, `Wt_Outer_max` | Maximum inner and outer magnetic-island widths extracted from`*_Wt_data.csv`.                               |
+| `s1`, `s2`                     | Local magnetic-shear values evaluated at `r1` and `r2`.                                                   |
+| `Wt_Inner_max`, `Wt_Outer_max` | Maximum inner and outer magnetic-island widths extracted from `*_Wt_data.csv`.                             |
 | `gamma`                          | Average linear growth rate identified from a stable interval of the CLT growth-rate history.                  |
-| `Ekmax` / `E_kmax`             | Saturated or maximum kinetic-energy feature. Task I applies`log10(Ekmax)` internally.                       |
+| `Ekmax` / `E_kmax`             | Saturated or maximum kinetic-energy feature. Task I applies `log10(Ekmax)` internally.                      |
 | `crash_percentage`               | Largest central-pressure drop found within the configured time window.                                        |
 | `X`, `Z` or `R`, `Z`       | Spatial coordinates. Some extraction and inference paths shift and swap axes before use.                      |
 | `Value`                          | Field value at a spatial coordinate.                                                                          |
@@ -85,13 +90,12 @@ PowerShell.
 PyTorch and joblib artifacts may contain pickle data. Deserialization is not a
 safe operation on untrusted input. Do not call `torch.load` or `joblib.load` on
 artifacts from an unknown or unverified source. The checksums above identify
-the files present when this documentation was prepared; update them whenever a
-reference artifact is intentionally replaced.
+the reference artifacts distributed with this release. Checksums are
+release-specific and may differ for artifacts distributed in later versions.
 
-## Suggested archival practice
+## Reproducible archival record
 
-For a paper release, preserve the exact Hugging Face dataset revision, tables,
-manifests, sampled fields, weights, source commit, and environment description
-in a versioned research archive. Assigning a DOI to that immutable archive
-makes it possible to cite a specific data/model snapshot even if the GitHub and
-Hugging Face repositories continue to evolve.
+A reproducible study record identifies the exact Hugging Face dataset revision,
+tables, manifests, sampled fields, weights, source commit, and environment
+description. A versioned immutable archive can be cited independently of later
+changes to the code and dataset repositories.

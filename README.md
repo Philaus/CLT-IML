@@ -7,7 +7,8 @@ This repository accompanies a forthcoming paper. It contains utilities for
 preparing and post-processing CLT simulation campaigns, three surrogate-modeling
 tasks, pretrained model artifacts, evaluation and visualization scripts, and
 an overview of the end-to-end workflow. The simulation databases are
-distributed separately through Hugging Face.
+distributed separately through Hugging Face under independent
+permission-required terms.
 
 > **Scope.** This is a research-code snapshot rather than a packaged Python
 > library. The CLT solver, the equilibrium solver, and site-specific cluster
@@ -85,7 +86,6 @@ CLT-IML/
 ├── weights/                 # pretrained Task I-III artifacts
 ├── CLT-IML Workflow.png     # workflow figure shown above
 ├── Program Diagram.pptx     # editable program-flow introduction
-├── HUGGINGFACE_DATASET_CARD.md
 ├── CITATION.cff
 ├── LICENSE
 └── NOTICE
@@ -98,15 +98,15 @@ checksums, coordinate conventions, and reproducibility notes.
 
 ## Data availability
 
-The complete simulation database will be hosted as a separate Hugging Face
-dataset. After downloading it, preserve its directory structure and place its
-contents under `data/database/` in this repository. The public dataset URL will
-be added here after upload.
+The complete simulation database is distributed as a separate Hugging Face
+dataset. Authorized users should preserve its directory structure and place its
+contents under `data/database/` in this repository.
 
-[`HUGGINGFACE_DATASET_CARD.md`](HUGGINGFACE_DATASET_CARD.md) is a prepared
-dataset-card template. Copy it to the root of the Hugging Face dataset
-repository as `README.md`, then add the final dataset identifier, license, DOI,
-and verified file inventory.
+The database is source-available but is not open data. Zhejiang University
+reserves all rights, and use requires prior written permission from Zhejiang
+University or its duly authorized representative. The database has its own
+terms published in its Hugging Face dataset repository; permission to use the
+software does not automatically authorize use of the database, or vice versa.
 
 ## Installation
 
@@ -211,9 +211,9 @@ and reports aggregate PSNR, SSIM, and timing statistics.
 
 Task III retraining requires a training manifest named
 `Double_Tearing_Train_Database_by_p0.csv` and the sampled fields under
-`selected_B9_633/`. Preserve those names in the Hugging Face dataset (or update
-the path constants in `models/TMONet-3.2.py`) and verify that every manifest row
-maps to a sampled field before publication.
+`selected_B9_633/`. The released database preserves those names, and every
+manifest row maps to a sampled field. Users working with a reorganized copy must
+update the path constants in `models/TMONet-3.2.py` accordingly.
 
 ## Data and artifact safety
 
@@ -253,9 +253,8 @@ Affiliations:
 2. College of Control Science and Engineering, Zhejiang University, Hangzhou
    310027, China.
 
-Machine-readable metadata are provided in [`CITATION.cff`](CITATION.cff). Add
-the final venue, year, DOI/arXiv identifier, ORCIDs, repository URL, and release
-version when available.
+Machine-readable metadata reflecting the current manuscript status are provided
+in [`CITATION.cff`](CITATION.cff).
 
 ## License
 
@@ -267,12 +266,23 @@ Except as expressly permitted by applicable law, prior written permission must
 be obtained from Zhejiang University or its duly authorized representative.
 See the complete [`LICENSE`](LICENSE) and registration [`NOTICE`](NOTICE).
 
-The separately hosted Hugging Face database requires its own dataset license;
-the software terms in this repository do not automatically apply to it.
-Authorized academic users are also requested to cite the associated paper and
-the versioned software/data release.
+The separately hosted Hugging Face database is also source-available with all
+rights reserved. Its public availability does not grant a right to use,
+reproduce, modify, redistribute, train or evaluate models on, publish derived
+results from, commercialize, or otherwise exploit it. Except as expressly
+permitted by applicable law, prior written permission must be obtained from
+Zhejiang University or its duly authorized representative. The software and
+database permissions are independent. Authorized academic users are also
+requested to cite the associated paper and the versioned software/data release.
 
-## Contributing
+## Issue reports and permission requests
 
-Bug reports and reproducibility improvements are welcome. Please read
-[`CONTRIBUTING.md`](CONTRIBUTING.md) before opening an issue or pull request.
+Reports of documentation errors, broken links, and reproducibility problems are
+welcome through the repository issue tracker. Do not submit source code,
+datasets, model artifacts, confidential materials, or pull requests unless
+requested and authorized in writing.
+
+Requests to use the software or the separately distributed database should be
+directed to Zhejiang University or its duly authorized representative. Opening
+an issue, downloading files, or possessing a copy does not constitute
+authorization to use the software or database.

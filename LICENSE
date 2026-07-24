@@ -1,4 +1,4 @@
-CLT-IML SOURCE CODE USE NOTICE
+CLT-IML SOURCE-AVAILABLE SOFTWARE TERMS
 
 Software title:
 Deep-learning surrogate model software based on tokamak magnetohydrodynamic
@@ -14,9 +14,10 @@ Software developer and principal code author: Y. J. Ma
 
 Copyright (c) 2026 Zhejiang University. All rights reserved.
 
-The source code is made publicly viewable for academic communication,
-inspection, and reproducibility assessment. Public availability of the source
-code does not grant a license to use the software.
+The source code is made publicly viewable as source-available software for
+academic communication, inspection, and reproducibility assessment. It is not
+open-source software. Public availability of the source code does not grant a
+license to use the software.
 
 Except to the extent expressly permitted by applicable law, any use,
 execution, reproduction, modification, adaptation, creation of derivative

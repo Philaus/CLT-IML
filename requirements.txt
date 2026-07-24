@@ -1,5 +1,5 @@
-# The original research environment was not pinned. Record exact versions for
-# the paper release after validating them on a clean machine.
+# The exact original research environment was not recorded, so these
+# dependencies are intentionally unpinned. Reproduction may be version-sensitive.
 numpy
 pandas
 scipy
