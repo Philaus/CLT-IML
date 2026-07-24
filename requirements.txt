@@ -1,0 +1,16 @@
+# The original research environment was not pinned. Record exact versions for
+# the paper release after validating them on a clean machine.
+numpy
+pandas
+scipy
+matplotlib
+seaborn
+scikit-learn
+scikit-image
+scikit-optimize
+torch
+tqdm
+joblib
+imageio
+openpyxl
+huggingface_hub

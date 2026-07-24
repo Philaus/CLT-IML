@@ -1,0 +1,21 @@
+CLT-IML SOFTWARE NOTICE
+
+Registered software name:
+基于托卡马克磁流体数值模拟的深度学习代理模型软件
+[简称：CLT-IML] V1.0
+
+English descriptive name:
+Deep-learning surrogate model software based on tokamak magnetohydrodynamic
+numerical simulations (CLT-IML), Version 1.0
+
+Chinese Computer Software Copyright Registration No.: 2026SR0627163
+Copyright owner: Zhejiang University
+Software developer and principal code author: Y. J. Ma
+
+The source code is publicly viewable, but use of the software requires prior
+written permission from Zhejiang University or its duly authorized
+representative. See the LICENSE file for the governing terms.
+
+The separately distributed simulation database is subject to the terms stated
+in its Hugging Face dataset repository and is not automatically covered by the
+software terms in this repository.

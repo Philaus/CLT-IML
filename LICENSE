@@ -1,0 +1,37 @@
+CLT-IML SOURCE CODE USE NOTICE
+
+Software title:
+Deep-learning surrogate model software based on tokamak magnetohydrodynamic
+numerical simulations (abbreviation: CLT-IML), Version 1.0
+
+Chinese registered title:
+基于托卡马克磁流体数值模拟的深度学习代理模型软件
+[简称：CLT-IML] V1.0
+
+Chinese Computer Software Copyright Registration No.: 2026SR0627163
+Copyright owner: Zhejiang University
+Software developer and principal code author: Y. J. Ma
+
+Copyright (c) 2026 Zhejiang University. All rights reserved.
+
+The source code is made publicly viewable for academic communication,
+inspection, and reproducibility assessment. Public availability of the source
+code does not grant a license to use the software.
+
+Except to the extent expressly permitted by applicable law, any use,
+execution, reproduction, modification, adaptation, creation of derivative
+works, distribution, redistribution, sublicensing, deployment,
+commercialization, or other exploitation of this software or any substantial
+portion of it requires prior written permission from Zhejiang University or
+its duly authorized representative.
+
+Downloading, cloning, viewing, or possessing a copy of the source code does
+not by itself constitute authorization. Rights not expressly granted in a
+written permission or license agreement are reserved by Zhejiang University.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, ACCURACY, AND NONINFRINGEMENT. TO THE MAXIMUM
+EXTENT PERMITTED BY APPLICABLE LAW, ZHEJIANG UNIVERSITY AND THE SOFTWARE
+DEVELOPER SHALL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY
+ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR ITS USE.

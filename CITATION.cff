@@ -1,0 +1,42 @@
+cff-version: 1.2.0
+message: >-
+  Prior written permission from Zhejiang University or its duly authorized
+  representative is required before using this software. Authorized academic
+  use should cite the associated manuscript and archived software release.
+title: "CLT-IML: surrogate modeling from CLT tokamak MHD simulations"
+type: software
+version: "1.0"
+authors:
+  - family-names: Ma
+    given-names: Y. J.
+    affiliation: >-
+      Institute for Fusion Theory and Simulation, School of Physics,
+      Zhejiang University, Hangzhou 310027, China
+abstract: >-
+  Research software for data processing, workflow automation, surrogate-model
+  training, inference, evaluation, and visualization based on CLT tokamak MHD
+  simulations.
+keywords:
+  - tokamak
+  - magnetohydrodynamics
+  - disruption prediction
+  - surrogate model
+  - scientific machine learning
+preferred-citation:
+  type: article
+  title: >-
+    Millisecond prediction of tokamak disruptions using a first-principles
+    surrogate model
+  authors:
+    - family-names: Zhang
+      given-names: W.
+    - family-names: Ma
+      given-names: Y. J.
+    - family-names: Cai
+      given-names: S. Z.
+    - family-names: Ma
+      given-names: Z. W.
+    - family-names: Sheng
+      given-names: Z. M.
+    - family-names: Zhang
+      given-names: Y.

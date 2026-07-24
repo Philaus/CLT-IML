@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local environments and package artifacts
+.venv/
+venv/
+env/
+build/
+dist/
+*.egg-info/
+
+# Notebooks and editors
+.ipynb_checkpoints/
+.vscode/
+.idea/
+*.swp
+*~
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# MATLAB autosave/temporary files
+*.asv
+*.m~
+
+# Simulation databases are distributed separately through Hugging Face.
+data/database/
