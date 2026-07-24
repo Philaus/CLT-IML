@@ -23,17 +23,17 @@ def r1WtinmaxCp(df):
     y_data = df["crash_percentage"]
 
     plt.figure(figsize=(9, 6), dpi=150)
-    plt.style.use("seaborn-v0_8-whitegrid")  # 使用干净的网格背景
+    plt.style.use("seaborn-v0_8-whitegrid")  # Use a clean grid background.
 
-    # 绘制数据散点图
+    # Plot the data scatter.
     plt.scatter(
         x_data,
         y_data,
-        color="#1f77b4",  # 经典科学蓝
-        alpha=0.7,  # 半透明度，方便观察重叠点
-        edgecolors="w",  # 白色边缘，使散点更清晰
+        color="#1f77b4",  # Standard scientific blue.
+        alpha=0.7,  # Transparency helps reveal overlapping points.
+        edgecolors="w",  # White edges improve point separation.
         linewidths=0.5,
-        s=40,  # 散点大小
+        s=40,  # Marker size.
         label="Simulation Cases",
     )
 
@@ -59,7 +59,7 @@ def r1_Wt_scatter_colored(df):
 
     x_data = df["r1"]
     x = df["Wt_Inner_max"]
-    c_data = df["crash_percentage"]  # 用于上色的第三维数据
+    c_data = df["crash_percentage"]  # Third variable used for color.
     y_data = x
 
     fig, ax = plt.subplots(figsize=(5.5, 4.2), dpi=600)
@@ -72,7 +72,7 @@ def r1_Wt_scatter_colored(df):
         cmap=cmap,
         norm=norm,
         alpha=0.85,
-        edgecolors="black",  # 黑色细边框比白色边缘更具学术感
+        edgecolors="black",  # Thin black marker edges.
         linewidths=0.4,
         s=35,
         # label="Simulation Cases",
@@ -133,14 +133,14 @@ def r1_Wt_scatter_colored(df):
 
 def plot_confusion_matrix(df):
     """
-    根据判定标准绘制混淆矩阵
-    标准: r1 - Wt_Inner_max > 0  --> 预测 Safe (<8.5%)
+    Plot a confusion matrix using the decision criterion.
+    Criterion: r1 - Wt_Inner_max > 0 predicts Safe (<8.5%).
     """
-    # 1. 建立二分类标签 (1 代表 Safe 正常类, 0 代表 Crash 崩溃类)
+    # 1. Build binary labels: 1 for Safe and 0 for Crash.
     y_true = (df["crash_percentage"] < 0.085).astype(int)
     x = df["Wt_Inner_max"]
     y_pred = ((df["r1"] - x / (1 + 2 * x)) > 0).astype(int)
-    # 打印四项指标
+    # Print the four metrics.
     print(f"Accuracy:  {accuracy_score(y_true, y_pred):.4f}")
     print(f"Precision: {precision_score(y_true, y_pred):.4f}")
     print(f"Recall:    {recall_score(y_true, y_pred):.4f}")

@@ -17,20 +17,20 @@ plt.rcParams["font.sans-serif"] = [
     "SimHei",
     "Microsoft YaHei",
     "DejaVu Sans",
-]  # 设置中文字体
-plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
+]  # Configure fonts that support Chinese text.
+plt.rcParams["axes.unicode_minus"] = False  # Render minus signs correctly.
 
 # ========================================================================================
-# 2025.12.11 回归模型B33，数据集归一化到3e-5，增加输入参数p0
-# 2026.05.14 增加了详细的用时统计
-# 2026.05.14 修复了每个算例重复读取模型和归一化器的问题，并且不再划分batch，全部一次性送入gpu推理
-# 2026.6.3 大幅优化了图片和文字的风格和排版
+# 2025-12-11: B33 regression model; normalized data to 3e-5 and added p0.
+# 2026-05-14: Added detailed timing statistics.
+# 2026-05-14: Load the model/preprocessor once and infer each case in one GPU batch.
+# 2026-06-03: Improved figure and typography styling.
 # ========================================================================================
 
 
 class AsymmetricMinMaxScaler:
     """
-    简化版不对称归一化器，适用于1D数据
+    Simplified asymmetric normalizer for 1D data.
     """
 
     def __init__(self, feature_range=(-1, 1)):
@@ -40,11 +40,11 @@ class AsymmetricMinMaxScaler:
         X = np.array(X).flatten()
         self.target_min_, self.target_max_ = self.feature_range
 
-        # 正值统计
+        # Positive-value statistics.
         positive_data = X[X > 0]
         self.pos_max_ = np.max(positive_data) if len(positive_data) > 0 else 1.0
 
-        # 负值统计
+        # Negative-value statistics.
         negative_data = X[X < 0]
         self.neg_min_ = np.min(negative_data) if len(negative_data) > 0 else -1.0
 
@@ -54,11 +54,11 @@ class AsymmetricMinMaxScaler:
         X = np.array(X).flatten()
         result = np.zeros_like(X)
 
-        # 正值部分
+        # Positive values.
         positive_mask = X > 0
         result[positive_mask] = (X[positive_mask] / self.pos_max_) * self.target_max_
 
-        # 负值部分
+        # Negative values.
         negative_mask = X < 0
         result[negative_mask] = (X[negative_mask] / abs(self.neg_min_)) * abs(
             self.target_min_
@@ -73,11 +73,11 @@ class AsymmetricMinMaxScaler:
         X = np.array(X).flatten()
         result = np.zeros_like(X)
 
-        # 正值部分逆变换
+        # Inverse-transform positive values.
         positive_mask = X > 0
         result[positive_mask] = (X[positive_mask] / self.target_max_) * self.pos_max_
 
-        # 负值部分逆变换
+        # Inverse-transform negative values.
         negative_mask = X < 0
         result[negative_mask] = (X[negative_mask] / abs(self.target_min_)) * abs(
             self.neg_min_
@@ -87,36 +87,36 @@ class AsymmetricMinMaxScaler:
 
 
 class SinActivation(nn.Module):
-    """自定义sin激活函数"""
+    """Custom sine activation."""
 
     def forward(self, x):
         return torch.sin(x)
 
 
 class DataPreprocessor:
-    """数据预处理器"""
+    """Data preprocessor."""
 
     def __init__(self):
         self.q_scaler = StandardScaler()
         self.coord_scaler = StandardScaler()
         self.vr_scaler = AsymmetricMinMaxScaler(feature_range=(-1, 1))
-        self.eps = 1e-6  # 控制对数变换平滑度
+        self.eps = 1e-6  # Control log-transform smoothness.
 
     def fit_transform(self, q_params, spatial_coords, vr_values):
-        """拟合并转换数据"""
-        # 1. 归一化q参数
+        """Fit preprocessing and transform data."""
+        # 1. Normalize q parameters.
         q_params_scaled = self.q_scaler.fit_transform(q_params)
 
-        # 2. 归一化空间坐标 (X, Z)
+        # 2. Normalize spatial coordinates (X, Z).
         coords_scaled = self.coord_scaler.fit_transform(spatial_coords)
 
-        # 3. 对vr值进行对数变换 + 归一化
+        # 3. Log-transform and normalize vr values.
         vr_transformed = self._transform_vr(vr_values, fit=True)
 
         return q_params_scaled, coords_scaled, vr_transformed
 
     def transform(self, q_params, spatial_coords, vr_values):
-        """转换新数据"""
+        """Transform new data."""
         q_params_scaled = self.q_scaler.transform(q_params)
         coords_scaled = self.coord_scaler.transform(spatial_coords)
         vr_transformed = self._transform_vr(vr_values, fit=False)
@@ -124,11 +124,11 @@ class DataPreprocessor:
         return q_params_scaled, coords_scaled, vr_transformed
 
     def _transform_vr(self, vr_values, fit=False):
-        """对 vr 值进行带符号对数变换并归一化到 [-1, 1]"""
+        """Apply a signed log transform and normalize vr to [-1, 1]."""
         vr_values = np.array(vr_values).flatten()
         vr_log = np.sign(vr_values) * np.log1p(np.abs(vr_values) / self.eps)
 
-        # 归一化到 [-1, 1]
+        # Normalize to [-1, 1].
         if fit:
             vr_scaled = self.vr_scaler.fit_transform(vr_log.reshape(-1, 1)).flatten()
         else:
@@ -137,10 +137,10 @@ class DataPreprocessor:
         return vr_scaled
 
     def _transform_true_vr(self, vr_values, fit=False):
-        """对 vr 直接归一化到 [-1, 1]"""
+        """Normalize vr directly to [-1, 1]."""
         vr_values = np.array(vr_values).flatten()
 
-        # 归一化到 [-1, 1]
+        # Normalize to [-1, 1].
         if fit:
             vr_scaled = self.vr_scaler.fit_transform(vr_values.reshape(-1, 1)).flatten()
         else:
@@ -149,17 +149,17 @@ class DataPreprocessor:
         return vr_scaled
 
     def inverse_transform_vr(self, vr_scaled):
-        """将归一化后的 vr 值反变换回原始尺度"""
-        # 1. 反归一化
+        """Inverse-transform normalized vr values to their original scale."""
+        # 1. Invert normalization.
         vr_log = self.vr_scaler.inverse_transform(vr_scaled.reshape(-1, 1)).flatten()
 
-        # 2. 逆带符号对数变换
+        # 2. Invert the signed log transform.
         vr_original = np.sign(vr_log) * self.eps * (np.expm1(np.abs(vr_log)))
 
         return vr_original
 
     def get_preprocessing_info(self):
-        """获取预处理信息"""
+        """Return preprocessing metadata."""
         return {
             "q_scaler_mean": self.q_scaler.mean_,
             "q_scaler_scale": self.q_scaler.scale_,
@@ -176,16 +176,16 @@ class TMONet(nn.Module):
         self,
         branch_input_dim=5,  # r1, r2, s1, s2, p0
         trunk_input_dim=2,  # R, Z
-        hidden_dim1=200,  # Brunch 隐藏层大小
-        hidden_dim2=110,  # Trunk 隐藏层大小
-        output_dim=90,  # 输出内积层大小
+        hidden_dim1=200,  # Branch hidden dimension.
+        hidden_dim2=110,  # Trunk hidden dimension.
+        output_dim=90,  # Inner-product output dimension.
         branch_depth=4,
         trunk_depth=4,
         dropout_rate=0.08,
     ):
         super(TMONet, self).__init__()
 
-        # Branch Network: 处理q函数参数 (r1, r2, s1, s2, p0)
+        # Branch network: process q-function parameters.
         self.branch_net = self._build_mlp(
             input_dim=branch_input_dim,
             hidden_dim=hidden_dim1,
@@ -194,7 +194,7 @@ class TMONet(nn.Module):
             dropout_rate=dropout_rate,
         )
 
-        # Trunk Network: 处理空间坐标 (R, Z)
+        # Trunk network: process spatial coordinates.
         self.trunk_net = self._build_mlp(
             input_dim=trunk_input_dim,
             hidden_dim=hidden_dim2,
@@ -203,27 +203,27 @@ class TMONet(nn.Module):
             dropout_rate=dropout_rate,
         )
 
-        # 偏置项
+        # Bias term.
         self.bias = nn.Parameter(torch.zeros(1))
 
     def _build_mlp(self, input_dim, hidden_dim, output_dim, depth, dropout_rate=0.15):
         layers = []
         current_dim = input_dim
 
-        # 1. 只有当 depth >= 2 时，才有必要构建隐藏层
+        # 1. Build hidden layers only when depth >= 2.
         if depth >= 2:
             for i in range(depth - 1):
                 layers.append(nn.Linear(current_dim, hidden_dim))
                 layers.append(SinActivation())
 
-                # 只有不是最后一层隐藏层时才加 Dropout
-                # 最后一层隐藏层的索引是 depth - 2
+                # Add dropout except after the final hidden layer.
+                # The final hidden-layer index is depth - 2.
                 if i < depth - 2:
                     layers.append(nn.Dropout(dropout_rate))
 
                 current_dim = hidden_dim
 
-        # 2. 输出层（直接将最后的特征映射到物理量量级上）
+        # 2. Map final features directly to the physical-output scale.
         layers.append(nn.Linear(current_dim, output_dim))
 
         return nn.Sequential(*layers)
@@ -232,9 +232,9 @@ class TMONet(nn.Module):
         """
         Args:
             q_params: [batch_size, 5] - (r1, r2, s1, s2, p0)
-            spatial_coords: [batch_size, 2] - 空间坐标 (R, Z)
+            spatial_coords: [batch_size, 2] - Spatial coordinates (R, Z).
         Returns:
-            vr_pred: [batch_size, 1] - 预测的vr值
+            vr_pred: [batch_size, 1] - Predicted vr values.
         """
         branch_output = self.branch_net(q_params)  # [batch_size, output_dim]
         trunk_output = self.trunk_net(spatial_coords)  # [batch_size, output_dim]
@@ -248,43 +248,43 @@ class TMONet(nn.Module):
 
 def predict_vr(model, preprocessor, q_params, spatial_coords, device):
     """
-    使用训练好的模型预测vr值
+    Predict vr values with the trained model.
     Args:
-        model_path: 模型文件路径
-        preprocessor_path: 预处理器文件路径
-        q_params: [n_samples, 5] - q函数参数 (r1, r2, s1, s2, p0)
-        spatial_coords: [n_samples, 2] - 空间坐标 (R, Z)
+        model_path: Path to the model file.
+        preprocessor_path: Path to the preprocessor file.
+        q_params: [n_samples, 5] - q-function parameters.
+        spatial_coords: [n_samples, 2] - Spatial coordinates (R, Z).
     Returns:
-        vr_predictions: [n_samples] - 预测的vr值
+        vr_predictions: [n_samples] - Predicted vr values.
     """
     model.eval()
 
-    # 数据预处理 (CPU上进行)
+    # Preprocess data on the CPU.
     q_params_2d = q_params.reshape(-1, 5) if q_params.ndim == 1 else q_params
     q_scaled = preprocessor.q_scaler.transform(q_params_2d)
     coords_scaled = preprocessor.coord_scaler.transform(spatial_coords)
 
-    # 直接将基础尺寸的数据转为tensor并移至GPU
+    # Convert base-sized data to tensors and move them to the GPU.
     q_tensor = torch.FloatTensor(q_scaled).to(device)
     coords_tensor = torch.FloatTensor(coords_scaled).to(device)
 
-    # 在 GPU 上利用 expand 扩展维度
+    # Expand dimensions on the GPU.
     n_coords = coords_tensor.shape[0]
     q_tensor_expanded = q_tensor.expand(n_coords, -1)
 
-    # 预测
+    # Predict.
     with torch.no_grad():
         vr_pred_scaled = model(q_tensor_expanded, coords_tensor)
 
-    # 移回CPU并反归一化
+    # Move to the CPU and invert normalization.
     vr_pred = preprocessor.inverse_transform_vr(vr_pred_scaled.cpu().numpy())
 
     return vr_pred
 
 
 def batch_predict(
-    model,  # 传入已实例化的模型
-    preprocessor,  # 传入已实例化的预处理器
+    model,  # Pre-instantiated model.
+    preprocessor,  # Pre-instantiated preprocessor.
     q_test,
     vr_df,
     device,
@@ -301,14 +301,14 @@ def batch_predict(
 
     epoch_start = time.time()
 
-    # 将所有点一次性送入预测
+    # Predict all points in one call.
     batch_pred = predict_vr(model, preprocessor, q_test, coords_flat, device)
     vr_pred_flat = batch_pred.flatten()
 
     epoch_time = time.time() - epoch_start
     print(f"single case time_cost: {epoch_time:.4f}s")
 
-    # 构建网格
+    # Build the grid.
     preprocessor_temp = DataPreprocessor()
     vr_true_flat = preprocessor_temp._transform_true_vr(
         np.array(vr_pred_flat), fit=True
@@ -355,16 +355,16 @@ def create_2d_distribution_plot(
     gs = fig.add_gridspec(
         2, 5,
         height_ratios=[1.2, 1],
-        width_ratios=[1.0, 0.0 ,1.0, 0.1, 1.0],  # 控制 4 列的宽度比例
+        width_ratios=[1.0, 0.0 ,1.0, 0.1, 1.0],  # Control column-width ratios.
         hspace=0.23,
-        wspace=0.18,  # 这个 wspace 现在主要控制图1和图2之间的基础间隙
+        wspace=0.18,  # Primarily controls spacing between panels 1 and 2.
     )
     ax1 = fig.add_subplot(gs[0, 0])
     ax2 = fig.add_subplot(gs[0, 2])
     ax3 = fig.add_subplot(gs[0, 4])
     ax4 = fig.add_subplot(gs[1, :])
 
-    # 子图1：预测值分布
+    # Panel 1: predicted-value distribution.
     im1 = ax1.imshow(
         vr_pred_grid,
         extent=[-0.94, 0.94, -0.94, 0.94],
@@ -388,7 +388,7 @@ def create_2d_distribution_plot(
     cbar1.ax.tick_params(labelsize=18)
     # cbar1.set_label(r"$B_y$ Predict", fontsize=14)
 
-    # 子图2：真实值分布
+    # Panel 2: target-value distribution.
     im2 = ax2.imshow(
         vr_true_grid,
         extent=[-0.94, 0.94, -0.94, 0.94],
@@ -410,8 +410,8 @@ def create_2d_distribution_plot(
     cbar2.ax.tick_params(labelsize=18)
     cbar2.set_label(r"$B_y$ Uniformed Value", fontsize=18)
 
-    # 子图3：误差分布
-    # 使用发散色彩映射来显示正负误差
+    # Panel 3: error distribution.
+    # Use a diverging color map for positive and negative errors.
     im3 = ax3.imshow(
         error_grid,
         extent=[-0.94, 0.94, -0.94, 0.94],
@@ -432,20 +432,20 @@ def create_2d_distribution_plot(
     cbar3.ax.tick_params(labelsize=18)
     cbar3.set_label("Residual", fontsize=18)
 
-    # 计算当前图像的均方误差和 PSNR SSIM
-    # 为了排除数据矩阵中大量的NaN值，创建有效值掩码
+    # Calculate MSE, PSNR, and SSIM for the current field.
+    # Mask the numerous NaN values in the data matrix.
     valid_mask = ~(np.isnan(vr_true_grid) | np.isnan(vr_pred_grid))
-    # 提取有效值
+    # Extract valid values.
     truth_valid = vr_true_grid[valid_mask]
     pred_valid = vr_pred_grid[valid_mask]
-    # 计算实际数据范围
+    # Calculate the actual data range.
     data_range_actual = max(
         truth_valid.max() - truth_valid.min(), pred_valid.max() - pred_valid.min()
     )
 
     mse = np.nanmean(error_grid**2)
     psnr = 20 * np.log10(data_range_actual) - 10 * np.log10(mse)
-    # 计算SSIM（需要将1D数组重新组织为2D）
+    # Calculate SSIM after reshaping the 1D array to 2D.
     ssim = ssimfun(truth_valid, pred_valid, data_range=data_range_actual)
 
     mae = np.nanmean(np.abs(error_grid))
@@ -464,12 +464,12 @@ def create_2d_distribution_plot(
     x = np.linspace(-0.94, 0.94, grid_size)
     y = np.linspace(-0.94, 0.94, grid_size)
     X, Y = np.meshgrid(x, y)
-    z_zero_idx = np.argmin(np.abs(y - 0))  # 找到最接近Z=0的索引
-    r_coords = x  # R坐标
-    pred_z0 = vr_pred_grid[z_zero_idx, :]  # Z=0的预测值
-    true_z0 = vr_true_grid[z_zero_idx, :]  # Z=0的真实值
+    z_zero_idx = np.argmin(np.abs(y - 0))  # Find the index closest to Z=0.
+    r_coords = x  # R coordinates.
+    pred_z0 = vr_pred_grid[z_zero_idx, :]  # Predictions at Z=0.
+    true_z0 = vr_true_grid[z_zero_idx, :]  # Targets at Z=0.
 
-    # # 子图4：绘制Z=0的R-vr曲线
+    # # Panel 4: plot the R-vr curve at Z=0.
     ax4.plot(
         r_coords, true_z0, color="#2A729E", linestyle="-", linewidth=2.5, label="Real"
     )
@@ -500,15 +500,15 @@ def create_2d_distribution_plot(
 
 def plot_psnr_ssim_histogram(psnr_list, ssim_list, save_path=None):
     """
-    绘制PSNR和SSIM的统计分布直方图
+    Plot histograms of the PSNR and SSIM distributions.
     """
     if save_path is None:
         save_path = f"psnr_ssim.png"
 
-    # 创建图形和子图
+    # Create the figure and subplots.
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
 
-    # 绘制PSNR分布直方图
+    # Plot the PSNR histogram.
     n_psnr, bins_psnr, patches_psnr = ax1.hist(
         psnr_list, bins=8, color="skyblue", edgecolor="navy", alpha=0.7
     )
@@ -519,7 +519,7 @@ def plot_psnr_ssim_histogram(psnr_list, ssim_list, save_path=None):
     ax1.grid(True, alpha=0.3)
     ax1.tick_params(axis="both", labelsize=18)
 
-    # 在PSNR直方图上添加统计信息
+    # Add summary statistics to the PSNR histogram.
     psnr_mean = np.mean(psnr_list)
     psnr_std = np.std(psnr_list)
     ax1.text(
@@ -532,7 +532,7 @@ def plot_psnr_ssim_histogram(psnr_list, ssim_list, save_path=None):
         bbox=dict(boxstyle="round", facecolor="white", alpha=0.8),
     )
 
-    # 绘制SSIM分布直方图
+    # Plot the SSIM histogram.
     ax2.hist(ssim_list, bins=8, color="lightcoral", edgecolor="darkred", alpha=0.7)
     ax2.set_xlabel("SSIM", fontsize=18)
     ax2.set_ylabel("Counts", fontsize=18)
@@ -541,7 +541,7 @@ def plot_psnr_ssim_histogram(psnr_list, ssim_list, save_path=None):
     ax2.grid(True, alpha=0.3)
     ax2.tick_params(axis="both", labelsize=18)
 
-    # 在SSIM直方图上添加统计信息
+    # Add summary statistics to the SSIM histogram.
     ssim_mean = np.mean(ssim_list)
     ssim_std = np.std(ssim_list)
     ax2.text(
@@ -641,7 +641,7 @@ if __name__ == "__main__":
     epoch_time = time.time() - epoch_start
     print(f"time_cost: {epoch_time:.1f}s")
 
-    # 绘制所有测试集的预测-真实值分布图
+    # Plot predicted-versus-target values for all test sets.
     plt.figure(figsize=(8, 6))
     counts, xedges, yedges, im = plt.hist2d(
         all_targets, all_predictions, bins=300, cmap="viridis", norm=LogNorm()
@@ -649,7 +649,7 @@ if __name__ == "__main__":
 
     cbar = plt.colorbar(im)
     cbar.set_label("Point Count", fontsize=18)
-    cbar.ax.tick_params(labelsize=18)  # 颜色条刻度字号
+    cbar.ax.tick_params(labelsize=18)  # Color-bar tick-label size.
 
     min_val = min(min(all_targets), min(all_predictions))
     max_val = max(max(all_targets), max(all_predictions))

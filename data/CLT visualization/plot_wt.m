@@ -1,4 +1,4 @@
-% 计算磁岛宽度
+% Calculate magnetic-island widths.
 
 clear
 all_files = dir();
@@ -7,7 +7,7 @@ sub_folders = all_files(dir_flags);
 plt_case = {sub_folders.name};
 plt_case = strcat(plt_case, filesep);
 
-% 初始化一个主图窗，用于保留原来的总对比功能
+% Initialize the main figure for the aggregate comparison.
 figure(1); 
 clf;
 
@@ -34,9 +34,9 @@ for i=1:length(plt_case)
     q=q_p_g(:,3);
     r=sqrt((psi-min(psi))/(max(psi)-min(psi)));
 
-    % ==== 内、外两个 q=2 面磁剪切 ====
-    q2_idx_in  = find(q < m/n, 1, 'first'); % 内侧交点
-    q2_idx_out = find(q < m/n, 1, 'last');  % 外侧交点
+    % ==== Magnetic shear at the inner and outer q=2 surfaces ====
+    q2_idx_in  = find(q < m/n, 1, 'first'); % Inner intersection.
+    q2_idx_out = find(q < m/n, 1, 'last');  % Outer intersection.
     dqdr=diff(q)./diff(r);
     dqdr_in  = dqdr(q2_idx_in);
     dqdr_out = dqdr(q2_idx_out);
@@ -44,7 +44,7 @@ for i=1:length(plt_case)
     time=load([char(plt_case(i)),'nstime.dat']);
     t_end=time(:,4);
 
-    % ==== 初始化两个宽度的列表 ====
+    % ==== Initialize the two width arrays ====
     Wt_in_list = zeros(nst_end+1,1);
     Wt_out_list = zeros(nst_end+1,1);
     t_list = zeros(nst_end+1,1);
@@ -75,13 +75,13 @@ for i=1:length(plt_case)
         t_list(nst+1) = t_end(nst+1);
     end
     
-    % 创建表格并写入当前文件夹
+    % Create the table and write it to the current folder.
     data_table = table(t_list, Wt_in_list, Wt_out_list, 'VariableNames', {'Time', 'Wt_Inner', 'Wt_Outer'});
     csv_filename = [char(plt_case(i)), sub_folders(i).name, '_Wt_data.csv'];
     writetable(data_table, csv_filename);
     
-    % ==== 绘制当前算例专属图并保存 ====
-    fig_case = figure('Visible', 'off'); % 隐藏新建图窗，避免弹窗打扰
+    % ==== Plot and save the figure for the current case ====
+    fig_case = figure('Visible', 'off'); % Keep the new figure hidden.
     plot(t_list, Wt_in_list, 'b-', 'LineWidth', 2, 'DisplayName', 'Inner $q=2$');
     hold on;
     plot(t_list, Wt_out_list, 'r-', 'LineWidth', 2, 'DisplayName', 'Outer $q=2$');
@@ -91,14 +91,14 @@ for i=1:length(plt_case)
     legend('Interpreter', 'latex', 'Location', 'best', 'FontSize', 14);
     grid on;
     
-    % 保存图片到对应的文件夹下
+    % Save the image in the corresponding folder.
     img_filename = [char(plt_case(i)), sub_folders(i).name, '_Wt_plot.png'];
     exportgraphics(fig_case, img_filename, 'Resolution', 300);
-    close(fig_case); % 关闭该临时图窗
+    close(fig_case); % Close the temporary figure.
     
-    figure(1); % 焦点切回总图窗
+    figure(1); % Return focus to the aggregate figure.
     leg = sub_folders(i).name;
-    % 将该算例的外侧磁岛宽度(通常主导)画在总图上
+    % Add this case's usually dominant outer-island width to the aggregate plot.
     plot(t_list, Wt_out_list, 'LineWidth', 2, 'DisplayName', [leg, ' (Outer)'])
     hold on
     

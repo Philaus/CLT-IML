@@ -1,19 +1,20 @@
-% 绘制不同case的增长率随时间变化
-% 还可以绘制能量的变化
+% Plot growth rate versus time for different cases.
+% The energy evolution can also be plotted.
 clear;
 all_files = dir();
 dir_flags = [all_files.isdir] & ~strcmp({all_files.name}, '.') & ~strcmp({all_files.name}, '..');
 sub_folders = all_files(dir_flags);
 plot_case = {sub_folders.name};
 % plot_case = strcat(plt_case, filesep);
-% 绘图时间范围
+% Plotting time range.
 min_t=800;
 max_t=20000;
 
 % cd 'E:\CLTData\plasmoid-p1\'
 
 for i=1:length(plot_case)
-    % energy.dat--时间 磁能 动能 热能 增长率 shape=(num, 5)
+    % energy.dat columns: time, magnetic energy, kinetic energy, thermal energy,
+    % and growth rate; shape=(num, 5).
     dat_dir=['./',char(plot_case(i)),'/energy.dat'];
     energy_data=load(dat_dir);
 
@@ -27,11 +28,11 @@ for i=1:length(plot_case)
     title('$\gamma-E_k-t$','Interpreter','latex','FontSize', 16);
     xlabel('$t/t_A$','Interpreter','latex','FontSize', 16);
   
-    % 左侧绘制增长率
+    % Plot the growth rate on the left axis.
     yyaxis left;
     plot(time,rate,'LineWidth',1.5);
     ylabel('$\gamma$','Interpreter','latex','FontSize', 16);
-    % 右侧绘制Ek
+    % Plot Ek on the right axis.
     yyaxis right;
     semilogy(time,E_k,'linewidth',0.8, 'LineStyle','--');
     ylabel('$E_k$','Interpreter','latex','FontSize', 16);

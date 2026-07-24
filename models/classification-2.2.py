@@ -24,7 +24,7 @@ import imageio
 #     "SimHei",
 #     "Microsoft YaHei",
 #     "DejaVu Sans",
-# ]  # 设置中文字体
+# ]  # Configure fonts that support Chinese text.
 plt.rcParams["axes.unicode_minus"] = False
 plt.rcParams["font.family"] = "sans-serif"
 plt.rcParams["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans"]
@@ -33,10 +33,10 @@ plt.rcParams["axes.labelweight"] = "bold"
 plt.rcParams["axes.titleweight"] = "bold"
 
 # ====================================================================
-# 2026.1.24 删除了不再使用的模块
-# 添加扫描s2参数绘制多个r1-r2图功能，复用了原有遍历预测和绘图代码
-# 增加了直接读取模型pkl文件功能，无需每次都重新训练
-# 2026.1.28 添加扫描三维空间绘制分界面功能
+# 2026-01-24: Removed unused modules.
+# Added s2 scans that reuse the existing prediction and plotting code.
+# Added direct loading from model PKL files to avoid retraining.
+# 2026-01-28: Added 3D parameter scans and boundary-surface plotting.
 # ====================================================================
 
 
@@ -47,7 +47,7 @@ class PlasmaDisruptionRegressor:
         self.feature_names = ["r1", "r2", "s1", "s2"]
         self.crash_threshold = 0.085
 
-        # 自定义评分函数
+        # Custom scoring function.
         self.custom_scorer = make_scorer(self._weighted_accuracy)
 
     def _weighted_accuracy(self, y_true, y_pred):
@@ -60,7 +60,7 @@ class PlasmaDisruptionRegressor:
         return accuracy
 
     def load_data(self, file_path):
-        """加载数据"""
+        """Load data."""
         data = pd.read_csv(file_path)
         X = data[self.feature_names].values
         y = data["crash_percentage"].values
@@ -73,11 +73,11 @@ class PlasmaDisruptionRegressor:
         return X, y
 
     def train_model(self, X, y, use_grid_search=True):
-        """训练回归模型"""
+        """Train the regression model."""
         print("\n开始训练回归模型...")
         start_time = time.time()
 
-        # 标准化特征
+        # Standardize features.
         X_scaled = self.scaler.fit_transform(X)
 
         if use_grid_search:
@@ -94,22 +94,22 @@ class PlasmaDisruptionRegressor:
             }
 
             search_spaces = {
-                "max_depth": Integer(8, 15),  # 树最大深度
-                "n_estimators": Integer(150, 250),  # 森林中树的数量
-                # "max_features": Real(0.7, 0.95),  # 寻找最佳分割时考虑的特征比例
-                # "min_samples_leaf": Integer(1, 3),  # 叶节点所需的最小样本数
-                # "min_samples_split": Integer(2, 4),  # 分裂内部节点所需最小样本数
-                # "max_samples": Real(0.85, 1.0),  # 样本采样比例
+                "max_depth": Integer(8, 15),  # Maximum tree depth.
+                "n_estimators": Integer(150, 250),  # Number of trees.
+                # "max_features": Real(0.7, 0.95),  # Feature fraction considered per split.
+                # "min_samples_leaf": Integer(1, 3),  # Minimum samples per leaf.
+                # "min_samples_split": Integer(2, 4),  # Minimum samples for an internal split.
+                # "max_samples": Real(0.85, 1.0),  # Sample fraction.
             }
 
             base_model = RandomForestRegressor(**fixed_params)
             opt = BayesSearchCV(
                 base_model,
                 search_spaces,
-                n_iter=20,  # 迭代次数
-                cv=10,  # 10 折交叉验证
+                n_iter=20,  # Number of iterations.
+                cv=10,  # 10-fold cross-validation.
                 random_state=42,
-                n_jobs=-1,  # 使用全部 CPU 核心
+                n_jobs=-1,  # Use all CPU cores.
                 scoring="r2",
             )
             opt.fit(X_scaled, y)
@@ -120,7 +120,7 @@ class PlasmaDisruptionRegressor:
 
             end_time = time.time()
             training_time = end_time - start_time
-            print(f"训练用时: {training_time:.2f} 秒")  # 这是10次训练的用时
+            print(f"训练用时: {training_time:.2f} 秒")  # Time for all 10 training runs.
             self.last_training_time = training_time
 
             print(f"最佳参数: {opt.best_params_}")
@@ -128,12 +128,12 @@ class PlasmaDisruptionRegressor:
 
         else:
             print("使用给定参数训练10个模型用于集成预测...")
-            self.models = []  # 存储10个模型
+            self.models = []  # Store 10 models.
             kf = KFold(n_splits=10, shuffle=True, random_state=42)
 
             cv_scores = []
             y_pred_ensemble = np.zeros_like(y)
-            counts = np.zeros_like(y)  # 记录每个样本被预测的次数
+            counts = np.zeros_like(y)  # Count predictions for each sample.
 
             n_estimators = 237
 
@@ -141,17 +141,17 @@ class PlasmaDisruptionRegressor:
                 X_train, X_val = X_scaled[train_idx], X_scaled[val_idx]
                 y_train, y_val = y[train_idx], y[val_idx]
 
-                # 创建并训练模型
+                # Create and train the model.
                 model = RandomForestRegressor(
                     n_estimators=n_estimators,
                     max_depth=11,
                     min_samples_split=3,
                     min_samples_leaf=2,
-                    random_state=42 + fold,  # 不同的随机种子
+                    random_state=42 + fold,  # Use a different random seed.
                 )
                 model.fit(X_train, y_train)
 
-                # 验证集评估
+                # Validation-set evaluation.
                 y_val_pred = model.predict(X_val)
                 y_val_pred_binary = (y_val_pred > self.crash_threshold).astype(int)
                 y_val_binary = (y_val > self.crash_threshold).astype(int)
@@ -175,12 +175,12 @@ class PlasmaDisruptionRegressor:
                 f"10折交叉验证平均准确率: {np.mean(cv_scores):.4f} (+/- {np.std(cv_scores) * 2:.4f})"
             )
 
-            # 为了保持接口一致，设置一个主模型（使用第一个模型）
+            # Use the first model as the primary model for interface consistency.
             self.model = self.models[0]
 
     def predict(self, parameters):
         """
-        预测新样本 - 使用10折集成预测
+        Predict new samples with a 10-fold ensemble.
         """
         if self.model is None:
             raise ValueError("没有找到模型文件")
@@ -189,23 +189,23 @@ class PlasmaDisruptionRegressor:
         input_data = np.array(parameters).reshape(1, -1)
         input_scaled = self.scaler.transform(input_data)
 
-        # 如果有多模型，使用集成预测，否则使用单模型
+        # Use ensemble prediction when multiple models are available.
         if hasattr(self, "models") and self.models:
-            # 10折集成预测
+            # 10-fold ensemble prediction.
             predictions = []
             for model in self.models:
                 pred = model.predict(input_scaled)[0]
                 predictions.append(pred)
 
             crash_percentage = np.mean(predictions)
-            # 计算预测的标准差作为置信度指标
+            # Use prediction standard deviation as a confidence indicator.
             pred_std = np.std(predictions)
         else:
-            # 单模型预测
+            # Single-model prediction.
             crash_percentage = self.model.predict(input_scaled)[0]
-            pred_std = 0.0  # 单模型没有标准差
+            pred_std = 0.0  # A single model has no ensemble standard deviation.
 
-        # 根据阈值判断是否发生明显崩塌
+        # Classify a significant crash using the threshold.
         if crash_percentage > self.crash_threshold:
             confidence_level = "高" if pred_std < 0.05 else "中"
             result = {
@@ -227,16 +227,16 @@ class PlasmaDisruptionRegressor:
 
         end_time = time.time()
         prediction_time = end_time - start_time
-        # 添加到返回结果中
+        # Add values to the returned result.
         result["prediction_time"] = f"{prediction_time:.6f}秒"
-        # 如果记录了训练时间，也添加到结果中
+        # Include training time when available.
         if hasattr(self, "last_training_time"):
             result["training_time"] = f"{self.last_training_time:.2f}秒"
 
         return result
 
     def save_model(self, filepath):
-        """保存训练好的模型"""
+        """Save the trained model."""
         model_data = {
             "model": self.model,
             "scaler": self.scaler,
@@ -244,14 +244,14 @@ class PlasmaDisruptionRegressor:
             "crash_threshold": self.crash_threshold,
         }
 
-        # 如果有多模型，也保存它们
+        # Save all ensemble models when present.
         if hasattr(self, "models") and self.models:
             model_data["models"] = self.models
 
         joblib.dump(model_data, filepath)
 
     def _plot_results(self, y_test, y_pred, n_estimators):
-        """绘制回归结果"""
+        """Plot regression results."""
         fig, axes = plt.subplots(1, 1, figsize=(5, 4.5))
         r2 = r2_score(y_test, y_pred)
         mre = np.mean(np.abs((y_test - y_pred) / y_test)) * 100
@@ -260,7 +260,7 @@ class PlasmaDisruptionRegressor:
         y_test_binary = (y_test > self.crash_threshold).astype(int)
         accuracy = np.mean(y_pred_binary == y_test_binary) * 100
 
-        # 预测 vs 实际散点图
+        # Predicted-versus-actual scatter plot.
         axes.scatter(y_test, y_pred, alpha=0.6, edgecolors="k", linewidths=0.5, zorder=3)
         max_val = max(y_test.max(), y_pred.max())
         axes.plot([0, max_val], [0, max_val], "r--", lw=1.5, zorder=2)
@@ -314,14 +314,14 @@ class PlasmaDisruptionRegressor:
         plt.close()
 
     def evaluate_thresholds(self, X, y, thresholds=None):
-        """评估不同阈值下的性能并绘制ROC曲线"""
+        """Evaluate thresholds and plot the ROC curve."""
         if thresholds is None:
             thresholds = np.arange(0.07, 0.14, 0.005)
 
         X_scaled = self.scaler.transform(X)
         y_pred_proba = self.model.predict(X_scaled)
 
-        # 存储结果
+        # Store results.
         results = []
         confusion_matrices = []
 
@@ -329,13 +329,13 @@ class PlasmaDisruptionRegressor:
             y_pred_binary = (y_pred_proba > threshold).astype(int)
             y_true_binary = (y > threshold).astype(int)
 
-            # 计算混淆矩阵
+            # Calculate the confusion matrix.
             tn, fp, fn, tp = confusion_matrix(y_true_binary, y_pred_binary).ravel()
 
-            # 计算各项指标
+            # Calculate metrics.
             accuracy = (tp + tn) / (tp + tn + fp + fn)
             precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-            recall = tp / (tp + fn) if (tp + fn) > 0 else 0  # 灵敏度
+            recall = tp / (tp + fn) if (tp + fn) > 0 else 0  # Sensitivity.
             specificity = tn / (tn + fp) if (tn + fp) > 0 else 0
             f1 = (
                 2 * precision * recall / (precision + recall)
@@ -359,10 +359,10 @@ class PlasmaDisruptionRegressor:
             )
             confusion_matrices.append((tn, fp, fn, tp))
 
-        # 绘制性能指标随阈值变化
+        # Plot metrics versus threshold.
         self._plot_metrics_vs_threshold(results)
 
-        # 绘制最佳阈值处的混淆矩阵
+        # Plot the confusion matrix at the best threshold.
         best_result = max(results, key=lambda x: x["f1"])
         self._plot_confusion_matrix(
             best_result, confusion_matrices[results.index(best_result)]
@@ -374,33 +374,33 @@ class PlasmaDisruptionRegressor:
         self, r_step=0.01, s_step=0.05, model_path="TaskII_PCcls.pkl"
     ):
         """
-        扫描四个参数的所有两两组合，绘制二维分布图
+        Scan all parameter pairs and plot their 2D distributions.
 
-        参数:
-        - r_step: r参数的网格步长
-        - s_step: s参数的网格步长
+        Parameters:
+        - r_step: Grid spacing for r parameters.
+        - s_step: Grid spacing for s parameters.
         """
 
         if self.model is None:
             print(f"当前未加载模型，尝试从 {model_path} 读取...")
             try:
-                # 10折集成预测，结果取平均
+                # Average predictions from the 10-fold ensemble.
                 model_data = joblib.load(model_path)
                 self.model = model_data["model"]
                 self.scaler = model_data["scaler"]
-                # 恢复其他重要属性
+                # Restore other required attributes.
                 if "crash_threshold" in model_data:
                     self.crash_threshold = model_data["crash_threshold"]
-                # 如果是集成模型，恢复模型列表
+                # Restore the model list for an ensemble.
                 if "models" in model_data:
                     self.models = model_data["models"]
                 print("模型加载成功！")
             except Exception as e:
-                # 打印错误堆栈以便调试
+                # Print the stack trace for debugging.
                 traceback.print_exc()
                 raise ValueError(f"模型加载失败，请检查文件是否存在: {e}")
 
-        # 定义参数范围
+        # Define parameter ranges.
         r1_range = (0.23, 0.38)
         r2_range = (0.52, 0.67)
         s1_range = (-0.8, -0.45)
@@ -412,17 +412,17 @@ class PlasmaDisruptionRegressor:
         s2_fixed = 0.7
 
         # -------------------------------------------
-        # 扫描不同的参数子空间
+        # Scan different parameter subspaces.
         combinations = [
-            ("r1", "r2", r1_range, r2_range, s1_fixed, s2_fixed, "s1", "s2"),  # 676 点
-            ("r1", "s1", r1_range, s1_range, r2_fixed, s2_fixed, "r2", "s2"),  # 338 点
-            ("r1", "s2", r1_range, s2_range, r2_fixed, s1_fixed, "r2", "s1"),  # 390 点
+            ("r1", "r2", r1_range, r2_range, s1_fixed, s2_fixed, "s1", "s2"),  # 676 points.
+            ("r1", "s1", r1_range, s1_range, r2_fixed, s2_fixed, "r2", "s2"),  # 338 points.
+            ("r1", "s2", r1_range, s2_range, r2_fixed, s1_fixed, "r2", "s1"),  # 390 points.
             # ("r2", "s1", r2_range, s1_range, r1_fixed, s2_fixed, "r1", "s2"),
             # ("r2", "s2", r2_range, s2_range, r1_fixed, s1_fixed, "r1", "s1"),
             # ("s1", "s2", s1_range, s2_range, r1_fixed, r2_fixed, "r1", "r2"),
         ]
         # -------------------------------------------
-        # 扫描s2取值，给出r1-r2子空间的系列
+        # Scan s2 to generate a series over the r1-r2 subspace.
         # s2_values = np.arange(0.5, 1.2 + 0.01, 0.025)
         # combinations = [
         #     ("r1", "r2", r1_range, r2_range, s1_fixed, s2_val, "s1", "s2")
@@ -445,21 +445,21 @@ class PlasmaDisruptionRegressor:
             print(f"组合 {num}/{len(combinations)}: {x_param}-{y_param} 平面")
             print(f"{'='*60}")
 
-            # 根据参数类型选择步长
+            # Select grid spacing by parameter type.
             x_step = r_step if x_param.startswith("r") else s_step
             y_step = r_step if y_param.startswith("r") else s_step
 
-            # 创建网格
+            # Create the grid.
             x_values = np.arange(x_range[0], x_range[1] + x_step / 2, x_step)
             y_values = np.arange(y_range[0], y_range[1] + y_step / 2, y_step)
 
-            # 处理递减范围（如s1从-0.9到-0.3）
+            # Handle decreasing ranges such as s1 from -0.9 to -0.3.
             if y_range[0] > y_range[1]:
                 y_values = np.arange(y_range[0], y_range[1] - y_step / 2, -y_step)
 
             X, Y = np.meshgrid(x_values, y_values)
 
-            # 初始化预测矩阵
+            # Initialize the prediction matrix.
             pc_predictions = np.zeros_like(X)
 
             total_points = len(x_values) * len(y_values)
@@ -468,17 +468,17 @@ class PlasmaDisruptionRegressor:
             combo_start_time = time.time()
             # first_run = True
 
-            # 遍历网格进行预测
+            # Iterate over the grid for prediction.
             for i in range(X.shape[0]):
                 for j in range(X.shape[1]):
-                    # 根据当前组合构造特征向量
+                    # Construct the feature vector for this combination.
                     features = {}
 
-                    # 设置变化的参数
+                    # Set varying parameters.
                     features[x_param] = X[i, j]
                     features[y_param] = Y[i, j]
 
-                    # 设置固定参数
+                    # Set fixed parameters.
                     if fixed_param1 == "r1" or fixed_param2 == "r1":
                         features["r1"] = r1_fixed
                     elif fixed_param1 == "r2" or fixed_param2 == "r2":
@@ -488,7 +488,7 @@ class PlasmaDisruptionRegressor:
                     elif fixed_param1 == "s2" or fixed_param2 == "s2":
                         features["s2"] = s2_fixed
 
-                    # 处理第二个固定参数
+                    # Set the second fixed parameter.
                     if fixed_param1 == "r1" and "r1" not in features:
                         features["r1"] = fixed1
                     elif fixed_param1 == "r2" and "r2" not in features:
@@ -507,7 +507,7 @@ class PlasmaDisruptionRegressor:
                     elif fixed_param2 == "s2" and "s2" not in features:
                         features["s2"] = fixed2
 
-                    # 按正确顺序构造输入数组
+                    # Construct the input array in the required order.
                     input_array = np.array(
                         [
                             [
@@ -519,11 +519,11 @@ class PlasmaDisruptionRegressor:
                         ]
                     )
 
-                    # 标准化
+                    # Standardize.
                     # onepoint_start_time = time.time()
                     input_scaled = self.scaler.transform(input_array)
 
-                    # 预测
+                    # Predict.
                     if hasattr(self, "models") and self.models:
                         predictions = []
                         for model in self.models:
@@ -538,24 +538,24 @@ class PlasmaDisruptionRegressor:
                     # onepoint_end_time = time.time()
                     # if first_run:
                     #     prediction_time = onepoint_end_time - onepoint_start_time
-                    #     print(f"单点用时: {prediction_time:.2e} 秒")
+                    #     print(f"Time per point: {prediction_time:.2e} s")
                     #     first_run = False
 
-            # 记录当前组合的结束时间
+            # Record the end time for this combination.
             combo_end_time = time.time()
             combo_time = combo_end_time - combo_start_time
 
-            # 计算平均预测时间
+            # Calculate mean inference time.
             avg_prediction_time = combo_time / total_points
             print(f"当前组合预测用时: {combo_time:.2f} 秒")
             print(f"平均每个点预测用时: {avg_prediction_time:.2e} 秒")
 
-            # 绘制当前组合的二维图
+            # Plot the 2D map for this combination.
             self._plot_parameter_pair(
                 X, Y, pc_predictions, x_param, y_param, num, fixed2
             )
 
-            # 保存结果
+            # Save results.
             results[f"{x_param}_{y_param}"] = {
                 "X": X,
                 "Y": Y,
@@ -569,13 +569,13 @@ class PlasmaDisruptionRegressor:
     def _plot_parameter_pair(
         self, X, Y, pc_predictions, x_param, y_param, comb_idx, fixed2
     ):
-        """绘制单个参数对的二维分布图"""
+        """Plot the 2D distribution for one parameter pair."""
 
         def to_latex_format(param_name):
-            # 如果名字最后一位是数字，比如 r1 -> r_1, s2 -> s_2
+            # Convert trailing digits to subscripts, e.g. r1 -> r_1.
             if param_name[-1].isdigit():
                 return f"{param_name[:-1]}_{param_name[-1]}"
-            return param_name  # 如果没有数字则保持原样
+            return param_name  # Leave names without digits unchanged.
 
         all_fixed_values = {"r1": 0.27, "r2": 0.6, "s1": -0.55, "s2": 0.7}
         remaining_fixed = {
@@ -595,7 +595,7 @@ class PlasmaDisruptionRegressor:
                 vmax=0.2,
                 extend="max",
             )
-            # 绘制阈值线
+            # Plot the threshold line.
             axes.contour(
                 X,
                 Y,
@@ -605,7 +605,7 @@ class PlasmaDisruptionRegressor:
                 linewidths=2.5,
                 linestyles="--",
             )
-            # 显示图例
+            # Display the legend.
             threshold_percent = self.crash_threshold * 100
             legend_label = f"C.P.={threshold_percent:.1f}%"
             proxy_line = Line2D([0], [0], color="black", lw=2.8, linestyle="--")
@@ -624,11 +624,11 @@ class PlasmaDisruptionRegressor:
             info_text = f"Fixed:\n{', '.join(fixed_items)}"
             anchored_box = AnchoredText(
                 info_text,
-                loc="upper right",  # 让它的锚定策略和图例一样，默认往右上靠
-                prop=dict(size=16, weight="bold"),  # 字体加大加粗
+                loc="upper right",  # Match the legend's upper-right anchoring.
+                prop=dict(size=16, weight="bold"),  # Use larger bold text.
                 frameon=True,
-                # borderpad 控制文本框与坐标轴上、右边界的距离
-                # 图例默认的 borderpad 是 0.4，这里设为 0.4 能让二者右侧完美绝对对齐！
+                # borderpad controls spacing from the top and right axes.
+                # Match the legend's default 0.4 borderpad for alignment.
                 borderpad=0.4,
             )
             box_frame = anchored_box.patch
@@ -636,7 +636,7 @@ class PlasmaDisruptionRegressor:
             box_frame.set_edgecolor("#E0E0E0")
             box_frame.set_boxstyle("round,pad=0.5")
             box_frame.set_alpha(0.95)
-            fig.canvas.draw()  # 触发一次画布刷新，计算图例的真实动态高度
+            fig.canvas.draw()  # Refresh the canvas to measure the legend height.
             legend_height = axes.get_legend().get_window_extent().height
             anchored_box.set_bbox_to_anchor((0.96, 0.85), transform=axes.transAxes)
             axes.add_artist(anchored_box)
@@ -668,7 +668,7 @@ class PlasmaDisruptionRegressor:
 
         axes.grid(True, alpha=0.3)
         if "contour" in locals():
-            # 修改颜色条设置
+            # Adjust color-bar settings.
             cbar = plt.colorbar(contour, ax=axes, ticks=np.linspace(0, 0.2, 5))
             cbar.ax.tick_params(size=18)
             cbar.set_label("Crash Percentage", size=20)
@@ -676,33 +676,33 @@ class PlasmaDisruptionRegressor:
         plt.tight_layout()
 
         # -------------------------------------------
-        # 采用扫描s2绘制r1-r2图时添加s2指示条
+        # Add an s2 indicator when scanning s2 over r1-r2 plots.
         # fig.subplots_adjust(bottom=0.2)
         # ax_pos = fig.add_axes([0.3, 0.07, 0.4, 0.01])
         # s2_min, s2_max = 0.5, 1.2
-        # # 绘制背景基准线
+        # # Draw the background reference line.
         # ax_pos.axhline(0, color="lightgray", linewidth=4, zorder=1)
-        # # 绘制当前位置指示点
+        # # Draw the current-position marker.
         # ax_pos.plot(fixed2, 0, "ro", markersize=10, clip_on=False, zorder=2)
-        # # 设置坐标轴样式
+        # # Set the axis style.
         # ax_pos.set_xlim(s2_min, s2_max)
         # ax_pos.set_xticks([s2_min, s2_max])
         # ax_pos.set_xticklabels([f"s2={s2_min}", f"s2={s2_max}"], fontsize=18)
         # ax_pos.set_yticks([])
-        # # 隐藏边框
+        # # Hide borders.
         # for spine in ax_pos.spines.values():
         #     spine.set_visible(False)
         # ax_pos.patch.set_alpha(0)
         # -------------------------------------------
 
-        # 保存图像
+        # Save the image.
         filename = f"pc_distribution_{x_param}_{y_param}_{comb_idx}.png"
         plt.savefig(filename, dpi=600, bbox_inches="tight")
         plt.show()
         print(f"已保存: {filename}")
 
     def _plot_metrics_vs_threshold(self, results):
-        """绘制指标随阈值变化图"""
+        """Plot metrics versus threshold."""
         thresholds = [r["threshold"] for r in results]
         metrics = ["accuracy", "precision", "recall", "f1"]
         labels = ["Accuracy", "Precision", "Recall", "F1-Score"]
@@ -723,9 +723,9 @@ class PlasmaDisruptionRegressor:
                 linewidth=1.5,
                 marker=markers[i],
                 markersize=4.5,
-                markerfacecolor="white",   # 空心标点让多线图更通透、不拥挤
+                markerfacecolor="white",   # Hollow markers reduce visual crowding.
                 markeredgewidth=1.5,
-                zorder=3,                  # 确保曲线在网格线上方
+                zorder=3,                  # Keep curves above grid lines.
                 clip_on=True,
             )
 
@@ -754,7 +754,7 @@ class PlasmaDisruptionRegressor:
         plt.close()
 
     def _plot_confusion_matrix(self, best_result, cm):
-        """绘制混淆矩阵"""
+        """Plot the confusion matrix."""
         tn, fp, fn, tp = cm
 
         plt.figure(figsize=(6, 5))
@@ -783,47 +783,47 @@ class PlasmaDisruptionRegressor:
 
     def plot_3d_boundary(self, model_path="TaskII_PCcls.pkl", save_gif=True):
         """
-        扫描 r1-r2-s2 三维空间，绘制 crash probability = 0.085 的分界面
-        固定 s1 = -0.55
+        Scan r1-r2-s2 space and plot the crash-probability=0.085 boundary.
+        Hold s1 fixed at -0.55.
         """
         def to_latex_format(param_name):
             if param_name[-1].isdigit():
                 return f"{param_name[:-1]}_{param_name[-1]}"
             return param_name
 
-        # 1. 确保模型已加载
+        # 1. Ensure that the model is loaded.
         if self.model is None:
             data = joblib.load(model_path)
             self.model, self.scaler = data["model"], data["scaler"]
             if "models" in data:
                 self.models = data["models"]
 
-        # 2. 定义三维网格参数
+        # 2. Define 3D grid parameters.
         r1_vals = np.arange(0.23, 0.33 + 0.01, 0.01)
         r2_vals = np.arange(0.52, 0.66 + 0.01, 0.01)
         s2_vals = np.arange(0.6, 0.95 + 0.05, 0.05)
         s1_fixed = -0.55
 
-        # 生成网格 (indexing='ij' 确保坐标顺序对应 r1, r2, s2)
+        # Generate the grid with axes ordered as r1, r2, s2.
         R1, R2, S2 = np.meshgrid(r1_vals, r2_vals, s2_vals, indexing="ij")
 
-        # 3. 构造输入并进行批量预测
-        # 展平以便一次性输入模型
+        # 3. Construct inputs and run batched prediction.
+        # Flatten the grid for one model call.
         grid_points = np.column_stack(
             [R1.ravel(), R2.ravel(), np.full(R1.size, s1_fixed), S2.ravel()]
         )
         input_scaled = self.scaler.transform(grid_points)
 
-        # 集成预测
+        # Ensemble prediction.
         if hasattr(self, "models") and self.models:
             preds = np.mean([m.predict(input_scaled) for m in self.models], axis=0)
         else:
             preds = self.model.predict(input_scaled)
 
-        # 恢复为三维体数据形状
+        # Restore the 3D volume shape.
         volume = preds.reshape(R1.shape)
 
-        # 4. 使用 Marching Cubes 提取等值面 (阈值=0.085)
+        # 4. Extract the 0.085 isosurface with marching cubes.
         try:
             verts, faces, _, _ = measure.marching_cubes(
                 volume, self.crash_threshold, step_size=1
@@ -832,25 +832,25 @@ class PlasmaDisruptionRegressor:
             print("未在当前空间内找到指定阈值的等值面。")
             return
 
-        # 5. 坐标变换：将索引坐标转换回物理坐标 (r1, r2, s2)
-        # verts 的列顺序对应 indexing='ij' 下的 axis 0(r1), 1(r2), 2(s2)
+        # 5. Convert index coordinates back to physical r1, r2, and s2.
+        # verts columns map to axes 0 (r1), 1 (r2), and 2 (s2).
         real_verts = np.zeros_like(verts)
         real_verts[:, 0] = verts[:, 0] * 0.01 + 0.23  # r1
         real_verts[:, 1] = verts[:, 1] * 0.01 + 0.52  # r2
         real_verts[:, 2] = verts[:, 2] * 0.05 + 0.6  # s2
 
-        # 6. 3D 绘图
+        # 6. Create the 3D plot.
         fig = plt.figure(figsize=(9, 8))
         ax = fig.add_subplot(111, projection="3d")
 
-        # 创建多边形集合
+        # Create the polygon collection.
         mesh = Poly3DCollection(real_verts[faces], alpha=0.7)
         mesh.set_facecolor("coral")
         mesh.set_edgecolor("black")
         mesh.set_linewidth(0.1)
         ax.add_collection3d(mesh)
 
-        # 设置坐标轴范围和标签
+        # Set axis ranges and labels.
         ax.set_xlim(0.23, 0.34)
         ax.set_ylim(0.52, 0.67)
         ax.set_zlim(0.6, 1.0)
@@ -869,7 +869,7 @@ class PlasmaDisruptionRegressor:
             f"3D Crash Boundary (C.P.={threshold_percent:.1f}%)\nFixed ${latex_s1}$={s1_fixed}",
             fontsize=22,
             fontweight="bold",
-            pad=10,  # 增加标题间距防止与 3D 轴重叠
+            pad=10,  # Add title spacing to avoid overlap with the 3D axes.
         )
         for axis_obj in [ax.xaxis, ax.yaxis, ax.zaxis]:
             for label in axis_obj.get_ticklabels():
@@ -879,30 +879,30 @@ class PlasmaDisruptionRegressor:
         if save_gif:
             print("正在生成旋转动画帧...")
             frames = []
-            # 设定旋转路径：水平旋转 360 度
-            azimuths = np.arange(0, 360, 2)  # 每隔2度采一帧，共180帧
+            # Rotate horizontally through 360 degrees.
+            azimuths = np.arange(0, 360, 2)  # Sample every 2 degrees: 180 frames.
 
             for i, azim in enumerate(azimuths):
-                ax.view_init(elev=30, azim=azim)  # 改变视角
+                ax.view_init(elev=30, azim=azim)  # Change the view.
 
-                # 将当前画布转换为图片数组
+                # Convert the current canvas to an image array.
                 fig.canvas.draw()
-                # 使用 buffer_rgba 代替 tostring_rgb
+                # Use buffer_rgba instead of tostring_rgb.
                 rgba_buffer = fig.canvas.buffer_rgba()
-                # 直接转换为 numpy 数组，它会自动处理高 DPI 带来的维度变化
+                # Convert directly to NumPy to handle high-DPI dimensions.
                 image = np.array(rgba_buffer)
-                # 丢弃 Alpha 通道（RGBA -> RGB），imageio 存 GIF 通常只需要 RGB
+                # Drop the alpha channel because imageio GIF output needs RGB.
                 image = image[:, :, :3]
                 frames.append(image)
 
                 if i % 10 == 0:
                     print(f"已处理 {i}/{len(azimuths)} 帧")
 
-            # 保存为 GIF (duration 为帧间隔时间，单位秒)
+            # Save as GIF; duration is the frame interval in seconds.
             imageio.mimsave("3d_boundary_rotation.gif", frames, fps=15, loop=0)
             print("动画已保存为: 3d_boundary_rotation.gif")
         else:
-            # 原有的静态保存逻辑
+            # Original static-save path.
             ax.view_init(elev=30, azim=-60)
             plt.savefig("3d_crash_boundary.png", dpi=300)
             plt.show()
@@ -916,7 +916,7 @@ if __name__ == "__main__":
     regressor.train_model(X, y, use_grid_search=True)
     # regressor.train_model(X, y, use_grid_search=False)
 
-    # use_grid_search = bool(int(input("是否进行超参搜索？(0-否, 1-是): ")))
+    # use_grid_search = bool(int(input("Run hyperparameter search? (0=no, 1=yes): ")))
     # regressor.train_model(X, y, use_grid_search=use_grid_search)
 
     regressor.save_model("TaskII_PCcls.pkl")
@@ -928,8 +928,8 @@ if __name__ == "__main__":
     print(f"最佳F1分数: {best_result['f1']:.3f}")
     # -------------------------------------------
 
-    # 预测并利用扫描结果绘制参数空间分布图
+    # Predict and plot parameter-space distributions from the scan.
     # regressor.scan_all_parameter_pairs(r_step=0.01, s_step=0.05)
 
-    # 预测三维参数空间并绘制二维分界面
+    # Predict the 3D parameter space and plot the 2D boundary surface.
     # regressor.plot_3d_boundary()

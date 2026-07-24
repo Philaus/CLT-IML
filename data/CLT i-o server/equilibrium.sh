@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# 在工作区文件夹放入修改好的inequ和eq_transp.F
-# inequ参数已经做好初始化
+# Place the modified inequ and eq_transp.F files in the workspace folder.
+# The inequ parameters have already been initialized.
 rm *.o
 make -f mkeq_tr
 cp eqb1 eqxz

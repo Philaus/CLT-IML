@@ -6,7 +6,7 @@ kmax=90;
 jmax=60;
 imax=70;
 
-% 搜索基准点
+% Search for the reference point.
 lamuta0=7.48;
 r0=0.8;
 delta=0.4;
@@ -20,7 +20,7 @@ dlamuta=5/kmax;
 dA0=2/mmax;
 r=0:1/n:1;
 
-% 参数指定初始值
+% Specify initial parameter values.
 r10=0.25;
 r20=0.603;
 
@@ -83,7 +83,7 @@ for step_r2=-2:1
 
         filename = "r1=" + Fr1 + ",r2=" + Fr2 + ".csv";
         variable_names = {'Fr1', 'Fr2', 'Fs1', 'Fs2', 'Fr0', 'Fdelta', 'FA0', 'min_err', 'Flamuta'};
-        % Fr0>>>qlim   Flamuta>>>qpof   FA0>>>qdp0   Fdelta 需要填入 trans_eq.FA0 文件
+        % Fr0>>>qlim   Flamuta>>>qpof   FA0>>>qdp0   Fdelta must be written to trans_eq.FA0.
         variable_values = [Fr1, Fr2, Fs1, Fs2, Fr0, Fdelta, FA0, min_err, Flamuta];
         fid = fopen(filename, 'w');
         fprintf(fid, '%s,', variable_names{1:end-1});

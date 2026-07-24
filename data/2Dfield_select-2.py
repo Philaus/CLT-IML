@@ -5,39 +5,40 @@ from tqdm import tqdm
 
 
 # ===========================================================================================
-# 在每一格上都计算梯度并保存，会补充抽取大梯度的点，并且最后按照梯度大小，数据集只记录前20%的梯度值
-# 2025.12.18 取样逻辑改变，先对值取对数再计算平均值
+# Compute and save gradients for every grid cell, oversample large-gradient
+# points, and retain gradient values only for the top 20% of the dataset.
+# 2025-12-18: Changed the sampling logic to take logarithms before averaging.
 # ===========================================================================================
 
 
 def calculate_grid_gradient(df, radius=0.95):
     """
-    针对笛卡尔网格数据计算梯度，考虑圆形边界
+    Compute gradients on Cartesian-grid data while respecting a circular boundary.
     """
-    # 获取唯一的X和Z坐标并排序
+    # Get and sort the unique X and Z coordinates.
     x_coords = np.sort(df["X"].unique())
     z_coords = np.sort(df["Z"].unique())
 
-    # 计算网格间距
+    # Calculate the grid spacing.
     dx = x_coords[1] - x_coords[0]
     dz = z_coords[1] - z_coords[0]
 
-    # 创建网格矩阵
+    # Create the grid matrix.
     grid_values = np.full((len(z_coords), len(x_coords)), np.nan)
     point_indices = np.full((len(z_coords), len(x_coords)), -1, dtype=int)
 
-    # 填充网格值并记录索引
+    # Populate grid values and record their indices.
     for idx, row in df.iterrows():
         x_idx = np.where(x_coords == row["X"])[0][0]
         z_idx = np.where(z_coords == row["Z"])[0][0]
         grid_values[z_idx, x_idx] = row["Value"]
         point_indices[z_idx, x_idx] = idx
 
-    # 计算梯度（使用中心差分）
+    # Calculate gradients using central differences.
     grad_x = np.zeros_like(grid_values)
     grad_z = np.zeros_like(grid_values)
 
-    # X方向梯度 (内部点使用中心差分)
+    # X-direction gradient (central differences for interior points).
     for i in range(len(z_coords)):
         for j in range(1, len(x_coords) - 1):
             if not np.isnan(grid_values[i, j - 1]) and not np.isnan(
@@ -47,7 +48,7 @@ def calculate_grid_gradient(df, radius=0.95):
                     2 * dx
                 )
 
-    # Z方向梯度 (内部点使用中心差分)
+    # Z-direction gradient (central differences for interior points).
     for i in range(1, len(z_coords) - 1):
         for j in range(len(x_coords)):
             if not np.isnan(grid_values[i - 1, j]) and not np.isnan(
@@ -57,10 +58,10 @@ def calculate_grid_gradient(df, radius=0.95):
                     2 * dz
                 )
 
-    # 计算梯度模
+    # Calculate the gradient magnitude.
     gradient_magnitude = np.sqrt(grad_x**2 + grad_z**2)
 
-    # 将梯度信息添加回DataFrame
+    # Add the gradient information back to the DataFrame.
     df_with_grad = df.copy()
     df_with_grad["Gradient"] = 0.0
 
@@ -69,7 +70,7 @@ def calculate_grid_gradient(df, radius=0.95):
             idx = point_indices[i, j]
             if idx != -1:
                 dist_to_center = np.sqrt(x_coords[j] ** 2 + z_coords[i] ** 2)
-                if dist_to_center < radius:  # 离磁轴半径最大值
+                if dist_to_center < radius:  # Maximum radius from the magnetic axis.
                     df_with_grad.at[idx, "Gradient"] = gradient_magnitude[i, j]
 
     return df_with_grad
@@ -83,22 +84,22 @@ def sample_vr_data(
     random_seed=42,
 ):
     """
-    对vr数据进行智能采样
+    Perform adaptive sampling of the vr data.
     Args:
-        input_folder: 输入文件夹路径
-        output_folder: 输出文件夹路径
-        q_params_file: q参数文件路径
-        samples_per_file: 每个文件采样点数
-        extra_gradient_samples: 大梯度区域额外采样点数
-        random_seed: 随机种子
+        input_folder: Path to the input folder.
+        output_folder: Path to the output folder.
+        q_params_file: Path to the q-parameter file.
+        samples_per_file: Number of points sampled from each file.
+        extra_gradient_samples: Additional samples from high-gradient regions.
+        random_seed: Random seed.
     """
 
     np.random.seed(random_seed)
 
-    # 创建输出文件夹
+    # Create the output folder.
     os.makedirs(output_folder, exist_ok=True)
 
-    # 获取所有输入文件并按顺序排序
+    # Get all input files and sort them deterministically.
     input_files = sorted([f for f in os.listdir(input_folder) if f.endswith(".csv")])
     print(f"找到 {len(input_files)} 个CSV文件")
 
@@ -107,7 +108,7 @@ def sample_vr_data(
         output_path = os.path.join(output_folder, filename)
 
         df = pd.read_csv(input_path)
-        df = df[df["Value"] != 0]  # 删除所有无效数据
+        df = df[df["Value"] != 0]  # Remove all invalid data.
         df["X"] -= 2.766
         df[["Z", "X"]] = df[["X", "Z"]]
 
@@ -119,7 +120,7 @@ def sample_vr_data(
         # high_vr_data = df[high_vr_mask]
         # low_vr_data = df[low_vr_mask]
 
-        # 根据对数化的值的平均值划分数据
+        # Partition the data using the mean of the log-transformed values.
         log_values = np.log1p(np.abs(df["Value"]) / 1e-6)
         log_mean = log_values.mean()
         high_vr_mask = log_values > log_mean
@@ -127,10 +128,10 @@ def sample_vr_data(
         high_vr_data = df[high_vr_mask]
         low_vr_data = df[low_vr_mask]
 
-        n_high = int(samples_per_file * 3 / 8)  # 高值区域的采样百分比
+        n_high = int(samples_per_file * 3 / 8)  # Sampling allocation for high-value regions.
         n_low = samples_per_file - n_high
 
-        # 随机采样
+        # Random sampling.
         if n_high > 0:
             high_vr_sampled = high_vr_data.sample(
                 n=n_high, random_state=random_seed + i
@@ -145,18 +146,18 @@ def sample_vr_data(
         else:
             low_vr_sampled = pd.DataFrame(columns=df.columns)
 
-        # 合并采样结果
+        # Combine the sampling results.
         sampled_df = pd.concat([high_vr_sampled, low_vr_sampled], ignore_index=True)
         print(f"\n[文件: {filename}]")
         print(
             f"  -> 根据对数平均值划分：高值区域共有 {len(high_vr_data)} 个点，低值区域共有 {len(low_vr_data)} 个点"
         )
 
-        # 第二步：额外基于梯度采样（从尚未被选中的点中选取）
+        # Step 2: Sample additional points by gradient from unselected points.
         remaining_points = df[~df.index.isin(sampled_df.index)]
 
         if len(remaining_points) > 0:
-            if remaining_points["Gradient"].max() > 0:  # 确保有有效梯度
+            if remaining_points["Gradient"].max() > 0:  # Ensure that valid gradients exist.
                 grad_mean = remaining_points["Gradient"].mean()
                 high_grad_data = remaining_points[
                     remaining_points["Gradient"] > grad_mean
@@ -166,7 +167,7 @@ def sample_vr_data(
                     f"  -> 在未选中的剩余点中：高梯度（大于剩余点梯度均值）区域共有 {len(high_grad_data)} 个点"
                 )
 
-                # 从高梯度区域采样额外点数
+                # Draw additional samples from the high-gradient region.
                 if len(high_grad_data) > 0:
                     n_gradient = min(extra_gradient_samples, len(high_grad_data))
                     gradient_sampled = high_grad_data.sample(
@@ -180,21 +181,21 @@ def sample_vr_data(
         else:
             gradient_sampled = pd.DataFrame(columns=df.columns)
 
-        # 合并所有采样点
+        # Combine all sampled points.
         final_sampled_df = pd.concat([sampled_df, gradient_sampled], ignore_index=True)
 
-        # 计算前20%的阈值
+        # Calculate the threshold for the top 20%.
         threshold = final_sampled_df["Gradient"].quantile(0.8)
-        # 将后80%的Gradient值设置为None
+        # Set Gradient to None for the remaining 80%.
         final_sampled_df.loc[final_sampled_df["Gradient"] <= threshold, "Gradient"] = (
             None
         )
 
-        # 打乱顺序
+        # Shuffle the row order.
         final_sampled_df = final_sampled_df.sample(
             frac=1, random_state=random_seed + i
         ).reset_index(drop=True)
-        # 保存采样后的数据
+        # Save the sampled data.
         final_sampled_df.to_csv(output_path, index=False)
 
     print(f"\n采样完成! 所有文件已保存到: {output_folder}")

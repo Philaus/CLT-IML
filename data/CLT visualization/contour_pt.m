@@ -61,8 +61,8 @@ zb=zb*aa;
 % zs=reshape(xz_zz,mx*mz,1);
 % scatter(xs,zs,1);hold on;
 % scatter(xxb,zzb,5,'r');hold on;
-% alpha=0:pi/160:2*pi;%½Ç¶È[0,2*pi] 
-% R=min(rrb);%°ë¾¶ 
+% alpha=0:pi/160:2*pi; % Angle [0, 2*pi].
+% R=min(rrb); % Radius.
 % x=xzero+R*cos(alpha); 
 % y=R*sin(alpha); 
 % plot(x,y,'-');hold on;

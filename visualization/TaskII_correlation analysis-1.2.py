@@ -20,7 +20,7 @@ def calculate_correlation_matrix(data):
     for i, col1 in enumerate(numeric_columns):
         for j, col2 in enumerate(numeric_columns):
             if i <= j:
-                if len(data) > 2:  # 至少需要3个点来计算相关系数
+                if len(data) > 2:  # At least three points are required.
                     corr, p_value = pearsonr(data[col1].values, data[col2].values)
                     p_value_matrix.iloc[i, j] = p_value
                     p_value_matrix.iloc[j, i] = p_value
@@ -34,7 +34,7 @@ def calculate_correlation_matrix(data):
 def plot_correlation_heatmap(
     correlation_matrix, p_value_matrix, title="Pearson correlation matrix"
 ):
-    """绘制相关性热图"""
+    """Plot the correlation heatmap."""
 
     label_mapping = {
         "r1": r"$r_1$",
@@ -56,7 +56,7 @@ def plot_correlation_heatmap(
         vmax=1.0,
         ax=ax,
         cbar=True,
-        # 将 colorbar 放到顶部，并设置横向展示
+        # Place the color bar horizontally at the top.
         cbar_kws={
             "orientation": "horizontal",
             "location": "top",
@@ -99,7 +99,7 @@ if __name__ == "__main__":
     r2_position = data.columns.get_loc('r2')
     data.insert(r2_position + 1, 'r12', r12_values)
 
-    # 计算相关性矩阵和p值矩阵
+    # Calculate correlation and p-value matrices.
     correlation_matrix, p_value_matrix, numeric_columns = calculate_correlation_matrix(
         data
     )

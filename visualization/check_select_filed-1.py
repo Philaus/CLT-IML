@@ -4,9 +4,9 @@ import numpy as np
 import os
 import glob
 
-# 根据筛选过的扰动场数据，插值后绘制，可以看出筛选是否合理
+# Interpolate and plot the selected perturbation-field data to assess sampling.
 
-# 设置图片风格
+# Set the figure style.
 plt.style.use("default")
 plt.rcParams["font.sans-serif"] = ["SimHei"]
 plt.rcParams["axes.unicode_minus"] = False
@@ -16,18 +16,18 @@ csv_files = glob.glob(os.path.join(target_folder, "*.csv"))
 
 for csv_file in csv_files:
     try:
-        # 读取CSV文件
+        # Read the CSV file.
         df = pd.read_csv(csv_file)
 
-        # 提取数据
+        # Extract data.
         R = df["X"].values * 0.94
         Z = df["Z"].values * 0.94
         values = df["Value"].values
 
-        # 创建图形
+        # Create the figure.
         fig, ax1 = plt.subplots(1, 1, figsize=(8, 8))
 
-        # 散点图（显示实际数据分布）
+        # Scatter plot showing the sampled-data distribution.
         ax1.tick_params(axis="both", direction="in", length=2, width=1, labelsize=12)
         scatter1 = ax1.scatter(
             R, Z, c=values, cmap="viridis", s=10, alpha=0.8, vmin=-3e-5, vmax=3e-5
@@ -45,8 +45,8 @@ for csv_file in csv_files:
         ax1.set_ylim(-0.94, 0.94)
         cbar = plt.colorbar(scatter1, ax=ax1, label="Value")
         cbar.set_ticks([-3e-5, -2e-5, -1e-5, 0, 1e-5, 2e-5, 3e-5])
-        cbar.ax.tick_params(labelsize=20)  # 颜色条刻度字号
-        cbar.set_label("Value", fontsize=20)  # 颜色条标签字号
+        cbar.ax.tick_params(labelsize=20)  # Color-bar tick-label size.
+        cbar.set_label("Value", fontsize=20)  # Color-bar label size.
 
         base_name = os.path.splitext(os.path.basename(csv_file))[0]
         output_filename = os.path.join(target_folder, base_name + ".png")

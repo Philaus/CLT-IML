@@ -6,7 +6,7 @@ import shutil
 
 def extract_csv_data():
     """
-    扫描当前文件夹中的CSV文件
+    Scan CSV files in the current folder.
     """
     csv_files = glob.glob("*.csv")
     extracted_data = {}
@@ -38,25 +38,25 @@ def extract_csv_data():
 
 def process_files(index):
     """
-    主处理函数：为每个CSV文件创建文件夹并修改文件
+    Create a folder for each CSV file and prepare the required files.
     """
-    # 提取CSV数据
+    # Extract CSV data.
     csv_data, r12 = extract_csv_data()
     cnt = 1
 
-    # 为每个CSV文件创建文件夹并处理
+    # Create and process a folder for each CSV file.
     for i, (csv_file, data) in enumerate(csv_data.items(), 0):
-        # 创建文件夹名（1-***格式）
+        # Create the folder name using the 1-*** format.
         folder_name = (
             f"{index}{str(cnt).zfill(2)}-{os.path.splitext(csv_file)[0]}-r12={r12[i]:.2f}"
         )
         if not os.path.exists(folder_name):
             os.makedirs(folder_name)
 
-        # 修改 inequ 和 run.sh 文件
+        # Modify the inequ and run.sh files.
         modify_inequ(data, folder_name, cnt, index)
 
-        # 修改 eq_transp.F 和 tokRZ_mpi_pll_acc_merged.f90 文件
+        # Modify the eq_transp.F and tokRZ_mpi_pll_acc_merged.f90 files.
         modify_eq_transp(data, folder_name, cnt, r12)
 
         shutil.copy2(csv_file, os.path.join(folder_name, csv_file))
@@ -66,15 +66,15 @@ def process_files(index):
 
 def modify_inequ(data, folder_name, cnt, index):
     """
-    修改inequ文件并复制到目标文件夹
+    Modify the inequ file and copy it to the target folder.
     """
     with open("inequ", "r", encoding="utf-8") as f:
         lines = f.readlines()
-    # 修改第11行（索引10）
+    # Modify line 11 (index 10).
     if len(lines) > 10:
         new_line = f"12        4.00      {data['Fr0']:.4f}    {data['Flamuta']:.4f}    {data['FA0']:07.4f}    2.0      +1.         1.0\n"
         lines[10] = new_line
-    # 写入修改后的内容到目标文件夹
+    # Write the modified content to the target folder.
     target_file = os.path.join(folder_name, "inequ")
     with open(target_file, "w", encoding="utf-8") as f:
         f.writelines(lines)
@@ -97,14 +97,14 @@ def modify_inequ(data, folder_name, cnt, index):
 
 def modify_eq_transp(data, folder_name, cnt, r12):
     """
-    修改eq_transp.F文件并复制到目标文件夹
+    Modify the eq_transp.F file and copy it to the target folder.
     """
     with open("eq_transp.F", "r", encoding="utf-8") as f:
         content = f.read()
     old_pattern = "     &    *(1+qdp0*exp(-ybar/0.195**2))/(1+qdp0)"
     new_pattern = f"     &    *(1+qdp0*exp(-ybar/{data['Fdelta']}**2))/(1+qdp0)"
     content = content.replace(old_pattern, new_pattern)
-    # 写入修改后的内容到目标文件夹
+    # Write the modified content to the target folder.
     target_file = os.path.join(folder_name, "eq_transp.F")
     with open(target_file, "w", encoding="utf-8") as f:
         f.write(content)

@@ -12,10 +12,10 @@ from matplotlib.ticker import ScalarFormatter, FormatStrFormatter
 import matplotlib.ticker as ticker
 
 # ================================================================================
-# 2026.5.6 将饱和动能特征替换为内外磁岛宽度
-# 2026.5.20 优化程序数据加载和cpu-gpu交互
-# 2026.5.31 修复了模型隐藏层和dropout定义的逻辑
-# 2026.6.2 将饱和动能加回来
+# 2026-05-06: Replaced saturated kinetic energy with inner and outer island widths.
+# 2026-05-20: Optimized data loading and CPU-GPU transfers.
+# 2026-05-31: Fixed the hidden-layer and dropout construction logic.
+# 2026-06-02: Restored saturated kinetic energy.
 # ================================================================================
 
 
@@ -24,20 +24,20 @@ def preprocess_data(dataset):
     output_columns = ["Wt_Inner_max", "Wt_Outer_max", "gamma", "Ekmax"]
     normal_columns = ["r1", "r2", "s1", "s2", "p0"]
 
-    # 提取特征
+    # Extract features.
     normal_features = dataset[normal_columns].values
-    # 标准化特征
+    # Standardize features.
     normal_scaler = StandardScaler()
     features_scaled = normal_scaler.fit_transform(normal_features)
 
-    # 处理输出标签
+    # Process output labels.
     labels = dataset[output_columns].values
 
-    # labels 进行标准化
+    # Standardize labels.
     label_scaler = StandardScaler()
     labels_scaled = label_scaler.fit_transform(labels)
 
-    # 返回处理后的数据和所有标准化器
+    # Return the processed data and all scalers.
     return features_scaled, labels_scaled, normal_scaler, label_scaler
 
 
@@ -60,13 +60,13 @@ class MLP(nn.Module):
         if dropout_rates is None:
             dropout_rates = [0.2] * len(hidden_sizes)
         elif isinstance(dropout_rates, (int, float)):
-            # 如果传入的是单个数（如 0.08），自动扩展为 [0.08, 0.08, ...]
+            # Expand a scalar such as 0.08 to [0.08, 0.08, ...].
             dropout_rates = [dropout_rates] * len(hidden_sizes)
         elif len(dropout_rates) == 1:
-            # 如果传入的是单元素列表（如 [0.08]），自动复制对齐，例如 [0.08, 0.08]
+            # Replicate a one-element list such as [0.08] to match all layers.
             dropout_rates = dropout_rates * len(hidden_sizes)
 
-        # 创建多层网络
+        # Build the multilayer network.
         layers = []
         prev_size = input_size
 
@@ -76,12 +76,12 @@ class MLP(nn.Module):
             layers.append(nn.Linear(prev_size, hidden_size))
             layers.append(nn.ReLU())
 
-            # 只在不是最后一个隐藏层的情况下添加 Dropout
+            # Add dropout after every hidden layer except the last.
             if i < len(hidden_sizes) - 1:
                 layers.append(nn.Dropout(dropout_rate))
             prev_size = hidden_size
 
-        # 输出层（无激活函数）
+        # Output layer without an activation function.
         layers.append(nn.Linear(prev_size, output_size))
 
         self.network = nn.Sequential(*layers)
@@ -108,10 +108,10 @@ class EarlyStopping:
     def __init__(self, patience=10, verbose=True, delta=0, path="model.pth"):
         """
         Args:
-            patience (int): 验证集损失不再改善后等待的epoch数
-            verbose (bool): 是否打印早停信息
-            delta (float): 被认为有改善的最小变化量
-            path (str): 保存最佳模型的路径
+            patience (int): Epochs to wait after validation loss stops improving.
+            verbose (bool): Whether to print early-stopping messages.
+            delta (float): Minimum change considered an improvement.
+            path (str): Path used to save the best model.
         """
         self.patience = patience
         self.verbose = verbose
@@ -140,7 +140,7 @@ class EarlyStopping:
             self.counter = 0
 
     def save_checkpoint(self, val_loss, model, epoch):
-        """在验证损失减小时保存模型"""
+        """Save the model when validation loss decreases."""
         if self.verbose:
             print(
                 f"Validation loss decreased ({self.val_loss_min:.6f} --> {val_loss:.6f}). Saving model to {self.path}"
@@ -157,12 +157,12 @@ class EarlyStopping:
 
 
 def train_epoch(net, device, train_iter, loss_fn, optimizer):
-    # 将模型设置为训练模式
+    # Put the model in training mode.
     net.train()
     metrics = Accumulator(2)
     for X, y in train_iter:
         X, y = X.to(device), y.to(device)
-        # 计算梯度并更新参数
+        # Calculate gradients and update parameters.
         y_hat = net(X)
         loss = loss_fn(y_hat, y)
         optimizer.zero_grad()
@@ -188,41 +188,41 @@ def eval_model(net, device, test_iter, loss_fn):
 
 def split_data_by_fold(data, fold):
     """
-    根据折数划分数据为训练、验证、测试集 (8:2:1比例)
+    Split data into training, validation, and test sets at an 8:2:1 ratio.
     Args:
-        data: 完整数据集
-        fold: 当前折数 (0到n_folds-1)
-        n_folds: 总折数
+        data: Complete dataset.
+        fold: Current fold index, from 0 to n_folds - 1.
+        n_folds: Total number of folds.
     Returns:
         train_data, val_data, test_data
     """
     n_samples = len(data)
 
-    # 计算各集合大小 (按8:2:1比例)
+    # Calculate subset sizes using the 8:2:1 ratio.
     test_size = n_samples // 11
     val_size = 2 * test_size
 
-    # 确保随机但可重复的划分
+    # Create a randomized but reproducible split.
     np.random.seed(42)
     indices = np.random.permutation(n_samples)
 
-    # 计算测试集的起始位置
+    # Calculate the start of the test set.
     test_start = fold * test_size
     test_end = test_start + test_size
 
-    # 计算验证集的起始位置（在测试集之后）
+    # Calculate the start of the validation set after the test set.
     val_start = test_end
     val_end = val_start + val_size
 
-    # 提取测试集
+    # Extract the test set.
     test_indices = indices[test_start:test_end]
     test_data = data.iloc[test_indices].reset_index(drop=True)
 
-    # 提取验证集
+    # Extract the validation set.
     val_indices = indices[val_start:val_end]
     val_data = data.iloc[val_indices].reset_index(drop=True)
 
-    # 剩余为训练集
+    # Use the remaining samples for training.
     train_indices = np.concatenate([indices[:test_start], indices[val_end:]])
     train_data = data.iloc[train_indices].reset_index(drop=True)
 
@@ -239,12 +239,12 @@ def train_and_test_model(
     scheduler,
     epochs,
     patience,
-    label_scaler,  # 只需要label_scaler进行逆变换
+    label_scaler,  # Only label_scaler is needed for the inverse transform.
 ):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device)
 
-    # 初始化早停
+    # Initialize early stopping.
     early_stopping = EarlyStopping(patience=patience, verbose=True)
 
     train_ls, val_ls = [], []
@@ -263,7 +263,7 @@ def train_and_test_model(
         if scheduler is not None:
             scheduler.step(val_loss)
 
-        # 早停检查
+        # Check early stopping.
         early_stopping(val_loss, model, epoch)
         if early_stopping.early_stop:
             print("Early stopping triggered!")
@@ -271,21 +271,21 @@ def train_and_test_model(
 
     train_end_time = time.time()
     train_time = train_end_time - train_start_time
-    # 加载最佳模型
+    # Load the best model.
     checkpoint = torch.load("model.pth")
     model.load_state_dict(checkpoint["model_state_dict"])
     print(
         f"Loaded best model from epoch {checkpoint['epoch']} with val loss: {checkpoint['val_loss']:.6f}"
     )
 
-    # 进行测试集预测
+    # Run test-set inference.
     model.eval()
 
-    # 改用 PyTorch 列表在显存/内存中暂存 Tensor
+    # Accumulate tensors in PyTorch lists in device or host memory.
     preds_accum = []
     trues_accum = []
 
-    # 在开始前同步一下 GPU，确保计时准确
+    # Synchronize the GPU before starting for accurate timing.
     if torch.cuda.is_available():
         torch.cuda.synchronize()
 
@@ -296,20 +296,20 @@ def train_and_test_model(
             X_test = X_test.to(device)
             y_pred = model(X_test)
 
-            # 极其重要：只收集原始张量，绝不在循环内调用 .cpu().numpy()
+            # Collect raw tensors only; never call .cpu().numpy() inside the loop.
             preds_accum.append(y_pred.cpu())
             trues_accum.append(y_test)
 
-    # 在循环外部，一次性完成大矩阵的合并、转 numpy 和逆变换（向量化操作，速度极快）
+    # Concatenate, convert to NumPy, and invert scaling once outside the loop.
     test_predictions = []
     test_true_values = []
 
     if preds_accum:
-        # 一次性拼接并转为 numpy
+        # Concatenate and convert to NumPy in one operation.
         y_pred_all = torch.cat(preds_accum, dim=0).numpy()
         y_test_all = torch.cat(trues_accum, dim=0).numpy()
 
-        # 大矩阵整体逆变换
+        # Inverse-transform the complete matrices.
         y_pred_orig = label_scaler.inverse_transform(y_pred_all)
         y_test_orig = label_scaler.inverse_transform(y_test_all)
 
@@ -319,13 +319,13 @@ def train_and_test_model(
         test_predictions.extend(y_pred_orig)
         test_true_values.extend(y_test_orig)
 
-    # 预测结束，同步并记录时间
+    # Synchronize and record elapsed time after inference.
     if torch.cuda.is_available():
         torch.cuda.synchronize()
     predict_end_time = time.time()
     total_predict_time = (predict_end_time - predict_start_time) * 1000
 
-    # 计算平均单点预测时间
+    # Calculate mean inference time per point.
     n_test_points = len(test_predictions)
     time_per_point = total_predict_time / n_test_points if n_test_points > 0 else 0
 
@@ -334,16 +334,16 @@ def train_and_test_model(
     print(f"测试集点数: {n_test_points}")
     print(f"单点预测平均用时: {time_per_point:.4f} 毫秒")
 
-    # 测试预测完成后，清理DataLoader
+    # Release the DataLoader after test inference.
     try:
         del train_loader, val_loader, test_loader
     except:
         pass
-    # 强制垃圾回收
+    # Force garbage collection.
     import gc
 
     gc.collect()
-    # 如果是CUDA，清理缓存
+    # Clear the cache when using CUDA.
     if torch.cuda.is_available():
         torch.cuda.empty_cache()
 
@@ -360,16 +360,16 @@ def train_and_test_model(
 
 def evaluate_test_set(predictions, true_values):
     """
-    计算测试集的评估指标
+    Calculate test-set evaluation metrics.
     """
     predictions = np.array(predictions)
     true_values = np.array(true_values)
 
-    # 计算相对误差
+    # Calculate relative errors.
     relative_errors = np.abs((predictions - true_values) / true_values) * 100
     avg_errors = np.mean(relative_errors, axis=0)
 
-    # 计算R²分数
+    # Calculate R² scores.
     r2_wt_inner = r2_score(true_values[:, 0], predictions[:, 0])
     r2_wt_outer = r2_score(true_values[:, 1], predictions[:, 1])
     r2_gamma = r2_score(true_values[:, 2], predictions[:, 2])
@@ -388,7 +388,7 @@ def evaluate_test_set(predictions, true_values):
 
 def plot_all_folds_results(fold_results):
     """
-    绘制所有折的测试结果
+    Plot test results from all folds.
     """
     plt.rcParams["font.family"] = "sans-serif"
     plt.rcParams["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans"]
@@ -396,11 +396,11 @@ def plot_all_folds_results(fold_results):
     plt.rcParams["axes.labelweight"] = "bold"
     plt.rcParams["axes.titleweight"] = "bold"
 
-    # 合并所有折的结果
+    # Combine results from all folds.
     all_pred = np.concatenate([r["predictions"] for r in fold_results])
     all_true = np.concatenate([r["true_values"] for r in fold_results])
 
-    # 计算整体指标
+    # Calculate aggregate metrics.
     overall_errors = np.abs((all_pred - all_true) / all_true) * 100
 
     overall_errors_final = overall_errors
@@ -427,13 +427,13 @@ def plot_all_folds_results(fold_results):
         f"Ekmax - R²: {overall_r2_ekmax_final:.4f}, 平均相对误差: {overall_avg_errors_final[3]:.2f}%"
     )
 
-    # 创建图形
+    # Create the figure.
     plt.figure(figsize=(14, 12))
 
     def format_sci(x, _):
         return "{:.1e}".format(x).replace("e-0", "e-").replace("e+0", "e")
 
-    # 1. Wt_Inner散点图
+    # 1. Wt_Inner scatter plot.
     plt.subplot(2, 2, 1)
     min_val = min(all_true_final[:, 0].min(), all_pred_final[:, 0].min())
     max_val = max(all_true_final[:, 0].max(), all_pred_final[:, 0].max())
@@ -458,7 +458,7 @@ def plot_all_folds_results(fold_results):
     plt.tick_params(axis="both", labelsize=16)
     plt.grid(True, alpha=0.3, linestyle="--")
 
-    # 2. Wt_Outer散点图
+    # 2. Wt_Outer scatter plot.
     plt.subplot(2, 2, 2)
     min_val = min(all_true_final[:, 1].min(), all_pred_final[:, 1].min())
     max_val = max(all_true_final[:, 1].max(), all_pred_final[:, 1].max())
@@ -483,7 +483,7 @@ def plot_all_folds_results(fold_results):
     plt.tick_params(axis="both", labelsize=16)
     plt.grid(True, alpha=0.3, linestyle="--")
 
-    # 3. gamma散点图
+    # 3. gamma scatter plot.
     plt.subplot(2, 2, 3)
     min_val = min(all_true_final[:, 2].min(), all_pred_final[:, 2].min())
     max_val = max(all_true_final[:, 2].max(), all_pred_final[:, 2].max())
@@ -509,7 +509,7 @@ def plot_all_folds_results(fold_results):
     plt.tick_params(axis="both", labelsize=16)
     plt.grid(True, alpha=0.3, linestyle="--")
 
-    # 4. Ekmax散点图
+    # 4. Ekmax scatter plot.
     plt.subplot(2, 2, 4)
     min_val = min(all_true_final[:, 3].min(), all_pred_final[:, 3].min())
     max_val = max(all_true_final[:, 3].max(), all_pred_final[:, 3].max())
@@ -547,21 +547,21 @@ def plot_all_folds_results(fold_results):
 
 
 if __name__ == "__main__":
-    # ==================== 数据准备 ====================
+    # ==================== Data preparation ====================
     full_dataset = pd.read_csv("Double_Tearing_Train_Database_Bisland_Ek.csv")
     full_dataset["Ekmax"] = np.log10(full_dataset["Ekmax"])
 
-    # ==================== 10折交叉验证 ====================
+    # ==================== 10-fold cross-validation ====================
     n_folds = 10
     all_test_predictions = []
     all_test_true_values = []
     fold_results = []
 
-    # 添加时间记录列表
+    # Initialize timing records.
     all_train_times = []
     all_time_per_point = []
 
-    # 设置随机种子以确保可重复性
+    # Set random seeds for reproducibility.
     np.random.seed(42)
     torch.manual_seed(42)
 
@@ -574,25 +574,25 @@ if __name__ == "__main__":
         print(f"Fold {fold+1}/{n_folds}")
         print(f"{'='*60}")
 
-        # 划分数据
+        # Split the data.
         train_data, val_data, test_data = split_data_by_fold(full_dataset, fold)
 
-        # 预处理（每折单独进行）
+        # Fit preprocessing independently for each fold.
         X_train, y_train, normal_scaler, label_scaler = preprocess_data(train_data)
 
-        # 对验证集使用相同的标准化器
+        # Apply the same scalers to the validation set.
         normal_features_val = val_data[["r1", "r2", "s1", "s2", "p0"]].values
         X_val = normal_scaler.transform(normal_features_val)
         labels_val = val_data[["Wt_Inner_max", "Wt_Outer_max", "gamma", "Ekmax"]].values
         y_val = label_scaler.transform(labels_val)
 
-        # 对测试集使用相同的标准化器
+        # Apply the same scalers to the test set.
         normal_features_test = test_data[["r1", "r2", "s1", "s2", "p0"]].values
         X_test = normal_scaler.transform(normal_features_test)
         labels_test = test_data[["Wt_Inner_max", "Wt_Outer_max", "gamma", "Ekmax"]].values
         y_test = label_scaler.transform(labels_test)
 
-        # 创建数据加载器
+        # Create data loaders.
         train_dataset = AbaloneDataset(X_train, y_train)
         val_dataset = AbaloneDataset(X_val, y_val)
         test_dataset = AbaloneDataset(X_test, y_test)
@@ -627,7 +627,7 @@ if __name__ == "__main__":
 
         model = MLP(input_size, hidden_sizes, output_size, dropout_rates)
 
-        # 设置优化器和调度器
+        # Configure the optimizer and scheduler.
         lr = 5e-3
         weight_decay = 1e-5
         optimizer = torch.optim.Adam(
@@ -639,7 +639,7 @@ if __name__ == "__main__":
             optimizer, mode="min", factor=0.5, patience=10
         )
 
-        # 训练和测试
+        # Train and test.
         loss_fn = nn.MSELoss()
         (
             train_losses,
@@ -661,24 +661,24 @@ if __name__ == "__main__":
             patience=40,
             label_scaler=label_scaler,
         )
-        # 记录时间信息
+        # Record timing information.
         all_train_times.append(train_time)
         all_time_per_point.append(time_per_point)
 
-        # 获取当前折的最小验证损失
+        # Get the minimum validation loss for this fold.
         current_min_val_loss = min(val_losses)
-        # 检查是否是最佳模型
+        # Check whether this is the best model.
         if current_min_val_loss < best_val_loss:
             best_val_loss = current_min_val_loss
             best_model_state = model.state_dict().copy()
             best_fold = fold + 1
             print(f"🎯 新的最佳模型！Fold {best_fold}, Val Loss: {best_val_loss:.6f}")
 
-        # 评估当前折
+        # Evaluate the current fold.
         fold_result = evaluate_test_set(test_predictions, test_true_values)
         fold_result["fold"] = fold + 1
-        fold_result["train_time"] = train_time  # 添加训练用时
-        fold_result["time_per_point"] = time_per_point  # 添加单点预测用时
+        fold_result["train_time"] = train_time  # Store training time.
+        fold_result["time_per_point"] = time_per_point  # Store inference time per point.
         fold_results.append(fold_result)
 
         print(
@@ -690,7 +690,7 @@ if __name__ == "__main__":
             f"Avg Errors={fold_result['avg_errors']}, "
         )
 
-    # 保存最佳模型
+    # Save the best model.
     if best_model_state is not None:
         torch.save(best_model_state, "TaskI_10folds.pth")
     print(f"\n{'='*60}")
@@ -704,24 +704,24 @@ if __name__ == "__main__":
         f"  平均单点预测用时: {np.mean(all_time_per_point):.4f} ± {np.std(all_time_per_point):.4f} 毫秒"
     )
 
-    # 绘制所有折的结果
+    # Plot results from all folds.
     plot_all_folds_results(fold_results)
 
     # # ======================================================================
-    # # 独立测试模块
+    # # Independent test module.
     # # ======================================================================
     # print(f"\n{'='*60}")
-    # print("开始在独立测试集上进行预测与测试")
+    # print("Start inference and evaluation on the independent test set.")
     # print(f"{'='*60}")
 
-    # # 1. 读取并处理独立测试集数据
+    # # 1. Read and process the independent test data.
     # indep_dataset = pd.read_csv("Double_Tearing_Train_Database_Bisland-16.csv")
     # indep_dataset["Ekmax"] = np.log10(indep_dataset["Ekmax"])
 
-    # # 2. 获取预处理 Scaler (利用原有的 full_dataset 重新拟合，确保特征和标签的缩放尺度一致)
+    # # 2. Refit scalers on full_dataset for consistent feature and label scales.
     # _, _, global_normal_scaler, global_label_scaler = preprocess_data(full_dataset)
 
-    # # 3. 提取特征并使用相同的标准化器进行缩放
+    # # 3. Extract features and apply the same scalers.
     # normal_features_indep = indep_dataset[["r1", "r2", "s1", "s2", "p0"]].values
     # X_indep = global_normal_scaler.transform(normal_features_indep)
 
@@ -730,13 +730,13 @@ if __name__ == "__main__":
     # ].values
     # y_indep = global_label_scaler.transform(labels_indep)
 
-    # # 4. 构建独立测试集的 DataLoader
+    # # 4. Build the DataLoader for the independent test set.
     # indep_test_dataset = AbaloneDataset(X_indep, y_indep)
     # indep_test_loader = DataLoader(
     #     indep_test_dataset, batch_size=64, shuffle=False, num_workers=0, pin_memory=True
     # )
 
-    # # 5. 初始化模型结构并加载已保存的最佳模型权重
+    # # 5. Initialize the model and load the saved best weights.
     # device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     # input_size = X_indep.shape[1]
     # output_size = 4
@@ -748,7 +748,7 @@ if __name__ == "__main__":
     # loaded_model.to(device)
     # loaded_model.eval()
 
-    # # 6. 执行前向预测
+    # # 6. Run forward inference.
     # preds_accum = []
     # trues_accum = []
 
@@ -759,35 +759,35 @@ if __name__ == "__main__":
     #         preds_accum.append(y_pred.cpu())
     #         trues_accum.append(y_batch)
 
-    # # 7. 拼接矩阵并进行逆变换还原真实物理尺度
+    # # 7. Concatenate matrices and invert scaling to physical units.
     # y_pred_all = torch.cat(preds_accum, dim=0).numpy()
     # y_test_all = torch.cat(trues_accum, dim=0).numpy()
 
     # y_pred_orig = global_label_scaler.inverse_transform(y_pred_all)
     # y_test_orig = global_label_scaler.inverse_transform(y_test_all)
 
-    # # 还原 log10(Ekmax)
+    # # Invert log10(Ekmax).
     # y_pred_orig[:, 3] = 10 ** y_pred_orig[:, 3]
     # y_test_orig[:, 3] = 10 ** y_test_orig[:, 3]
 
-    # # 8. 复用原有的评估函数计算 R² 和平均相对误差
+    # # 8. Reuse the evaluation function for R² and mean relative error.
     # indep_result = evaluate_test_set(y_pred_orig, y_test_orig)
 
-    # print("\n独立测试集 (Bisland-16) 评估指标:")
+    # print("\nIndependent test-set (Bisland-16) metrics:")
     # print(
-    #     f"Wt_Inner - R²: {indep_result['r2_wt_inner']:.4f}, 平均相对误差: {indep_result['avg_errors'][0]:.2f}%"
+    #     f"Wt_Inner - R²: {indep_result['r2_wt_inner']:.4f}, mean relative error: {indep_result['avg_errors'][0]:.2f}%"
     # )
     # print(
-    #     f"Wt_Outer - R²: {indep_result['r2_wt_outer']:.4f}, 平均相对误差: {indep_result['avg_errors'][1]:.2f}%"
+    #     f"Wt_Outer - R²: {indep_result['r2_wt_outer']:.4f}, mean relative error: {indep_result['avg_errors'][1]:.2f}%"
     # )
     # print(
-    #     f"gamma    - R²: {indep_result['r2_gamma']:.4f}, 平均相对误差: {indep_result['avg_errors'][2]:.2f}%"
+    #     f"gamma    - R²: {indep_result['r2_gamma']:.4f}, mean relative error: {indep_result['avg_errors'][2]:.2f}%"
     # )
     # print(
-    #     f"Ekmax    - R²: {indep_result['r2_ekmax']:.4f}, 平均相对误差: {indep_result['avg_errors'][3]:.2f}%"
+    #     f"Ekmax    - R²: {indep_result['r2_ekmax']:.4f}, mean relative error: {indep_result['avg_errors'][3]:.2f}%"
     # )
 
-    # # 9. 复用原有绘图函数绘制散点图
-    # # 注意：这里将结果打包成 list `[indep_result]` 传入，以适配原函数的数据结构
-    # print("\n正在生成独立测试集预测效果散点图...")
+    # # 9. Reuse the plotting function to draw scatter plots.
+    # # Pass `[indep_result]` to match the original function's data structure.
+    # print("\nGenerating independent-test prediction scatter plots...")
     # plot_all_folds_results([indep_result])

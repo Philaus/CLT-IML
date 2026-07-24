@@ -16,18 +16,18 @@ plt.rcParams["font.sans-serif"] = [
     "SimHei",
     "Microsoft YaHei",
     "DejaVu Sans",
-]  # 设置中文字体
-plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
+]  # Configure fonts that support Chinese text.
+plt.rcParams["axes.unicode_minus"] = False  # Render minus signs correctly.
 
-# 设置随机种子
+# Set random seeds.
 torch.manual_seed(42)
 np.random.seed(42)
 
 # ========================================================================================
 # 2026.3.29
-# 大幅修改了梯度损失的计算方式，改为使用 PyTorch 的自动微分功能精确计算空间梯度
-# 在计算梯度损失时正确处理了梯度的物理量纲和归一化问题
-# 现在将首先按照工况划分训练集和验证集，然后再将二维数据展开为数据点
+# Calculate spatial gradients exactly with PyTorch automatic differentiation.
+# Handle physical units and normalization correctly in the gradient loss.
+# Split physical cases before expanding 2D fields into points.
 # ========================================================================================
 
 
@@ -36,7 +36,7 @@ class StructuralLoss(nn.Module):
     def __init__(
         self,
         alpha_start=0,
-        alpha_end=1e-3,  # 最终梯度权重
+        alpha_end=1e-3,  # Final gradient weight.
         start_epoch=200,
         transition_epochs=800,
         preprocessor=None,
@@ -51,21 +51,21 @@ class StructuralLoss(nn.Module):
         self.current_epoch = 0
 
     def set_epoch(self, epoch):
-        """在训练循环中每个epoch开始时调用"""
+        """Advance the schedule at the start of each epoch."""
         self.current_epoch = epoch
 
     def get_current_alpha(self):
-        """计算当前epoch的alpha值"""
+        """Calculate alpha for the current epoch."""
         if self.current_epoch < self.start_epoch:
-            return self.alpha_start  # 前start_epoch个epoch完全使用MSE
+            return self.alpha_start  # Use pure MSE for the first start_epoch epochs.
         elif self.current_epoch < self.start_epoch + self.transition_epochs:
-            # start_epoch-transition_epochs 个epoch线性衰减从1.0到alpha_end
+            # Decay linearly from 1.0 to alpha_end during the transition.
             progress = (self.current_epoch - self.start_epoch) / self.transition_epochs
             return self.alpha_start - (self.alpha_start - self.alpha_end) * progress
         # if self.current_epoch > 200:
         #     return 0
         else:
-            # transition_epochs之后维持alpha_end
+            # Hold alpha_end after the transition.
             return self.alpha_end
 
     def forward(
@@ -74,12 +74,12 @@ class StructuralLoss(nn.Module):
         current_alpha = self.get_current_alpha()
         mse_loss = self.mse(pred, target)
 
-        # 只在有梯度信息的点上计算梯度损失  只有alpha不为0时才计算梯度损失
+        # Calculate gradient loss only for valid gradients and nonzero alpha.
         if has_gradient.any() and current_alpha > 1e-8:
             grad_loss = self.calculate_gradient_loss(
                 model, q_params, coords, true_gradients, has_gradient
             )
-            # 添加调试信息
+            # Add diagnostic information.
             # if torch.is_tensor(grad_loss) and grad_loss > 0:
             #     print(
             #         f"Epoch {self.current_epoch}: Alpha={current_alpha:.3f}, MSE: {mse_loss.item():.4f}, Grad: {grad_loss.item():.4f}"
@@ -94,18 +94,18 @@ class StructuralLoss(nn.Module):
     def calculate_gradient_loss(
         self, model, q_params, coords, true_gradients, has_gradient
     ):
-        # 只选择有梯度信息的点
+        # Select only points with gradient information.
         grad_mask = has_gradient
         if not grad_mask.any():
             return torch.tensor(0.0).to(coords.device)
 
         q_params_grad = q_params[grad_mask]
-        # 1. 启用坐标的梯度追踪 (AutoDiff 的核心)
+        # 1. Enable coordinate gradients for automatic differentiation.
         coords_grad = coords[grad_mask].clone().requires_grad_(True)
         true_gradients_grad = true_gradients[grad_mask]
         device = coords.device
 
-        # 2. 前向传播，得到归一化后的预测值 [batch_size, 1]
+        # 2. Run the forward pass to obtain normalized predictions.
         pred_scaled = model(q_params_grad, coords_grad)
 
         vr_scaler = self.preprocessor.vr_scaler
@@ -142,23 +142,23 @@ class StructuralLoss(nn.Module):
             outputs=pred_raw,
             inputs=coords_grad,
             grad_outputs=grad_outputs,
-            create_graph=True,  # 必须为True，保证梯度损失能继续反向传播给模型权重
+            create_graph=True,  # Required to backpropagate gradient loss to model weights.
             retain_graph=True,
             only_inputs=True,
         )[
             0
-        ]  # 形状 [batch_size, 2]
+        ]  # Shape: [batch_size, 2].
 
-        # 提取空间坐标的缩放系数 (StandardScaler 的 scale_)
+        # Extract coordinate scale factors from StandardScaler.
         coord_scale = torch.tensor(
             self.preprocessor.coord_scaler.scale_, device=device, dtype=torch.float32
         )
 
-        # 修正梯度量纲：根据链式法则得到针对物理坐标的导数
+        # Correct gradient units using the chain rule for physical coordinates.
         grad_x_phys = gradients_scaled_coords[:, 0] / coord_scale[0]
         grad_z_phys = gradients_scaled_coords[:, 1] / coord_scale[1]
 
-        # 计算物理空间的梯度模长 (加 1e-8 防止 sqrt(0) 处导数为 NaN)
+        # Calculate physical gradient magnitude; add 1e-8 to avoid NaN at sqrt(0).
         pred_grad_magnitude_raw = torch.sqrt(grad_x_phys**2 + grad_z_phys**2 + 1e-8)
 
         pred_grad_log = torch.sign(pred_grad_magnitude_raw) * torch.log1p(
@@ -186,7 +186,7 @@ class StructuralLoss(nn.Module):
             pred_grad_log[neg_mask_grad] / torch.abs(neg_min)
         ) * torch.abs(target_min)
 
-        # 最终计算 MSE Loss
+        # Calculate the final MSE loss.
         grad_loss = self.mse(pred_grad_normalized, true_gradients_grad)
 
         return grad_loss
@@ -194,7 +194,7 @@ class StructuralLoss(nn.Module):
 
 class AsymmetricMinMaxScaler:
     """
-    简化版不对称归一化器，适用于1D数据
+    Simplified asymmetric normalizer for 1D data.
     """
 
     def __init__(self, feature_range=(-1, 1)):
@@ -204,11 +204,11 @@ class AsymmetricMinMaxScaler:
         X = np.array(X).flatten()
         self.target_min_, self.target_max_ = self.feature_range
 
-        # 正值统计
+        # Positive-value statistics.
         positive_data = X[X > 0]
         self.pos_max_ = np.max(positive_data) if len(positive_data) > 0 else 1.0
 
-        # 负值统计
+        # Negative-value statistics.
         negative_data = X[X < 0]
         self.neg_min_ = np.min(negative_data) if len(negative_data) > 0 else -1.0
 
@@ -218,11 +218,11 @@ class AsymmetricMinMaxScaler:
         X = np.array(X).flatten()
         result = np.zeros_like(X)
 
-        # 正值部分
+        # Positive values.
         positive_mask = X > 0
         result[positive_mask] = (X[positive_mask] / self.pos_max_) * self.target_max_
 
-        # 负值部分
+        # Negative values.
         negative_mask = X < 0
         result[negative_mask] = (X[negative_mask] / abs(self.neg_min_)) * abs(
             self.target_min_
@@ -237,11 +237,11 @@ class AsymmetricMinMaxScaler:
         X = np.array(X).flatten()
         result = np.zeros_like(X)
 
-        # 正值部分逆变换
+        # Inverse-transform positive values.
         positive_mask = X > 0
         result[positive_mask] = (X[positive_mask] / self.target_max_) * self.pos_max_
 
-        # 负值部分逆变换
+        # Inverse-transform negative values.
         negative_mask = X < 0
         result[negative_mask] = (X[negative_mask] / abs(self.target_min_)) * abs(
             self.neg_min_
@@ -251,7 +251,7 @@ class AsymmetricMinMaxScaler:
 
 
 class SinActivation(nn.Module):
-    """自定义sin激活函数"""
+    """Custom sine activation."""
 
     def forward(self, x):
         return torch.sin(x)
@@ -263,16 +263,16 @@ class TMONet(nn.Module):
         self,
         branch_input_dim=5,  # r1, r2, s1, s2, p0
         trunk_input_dim=2,  # R, Z
-        hidden_dim1=200,  # Brunch 隐藏层大小
-        hidden_dim2=110,  # Trunk 隐藏层大小
-        output_dim=90,  # 输出内积层大小
+        hidden_dim1=200,  # Branch hidden dimension.
+        hidden_dim2=110,  # Trunk hidden dimension.
+        output_dim=90,  # Inner-product output dimension.
         branch_depth=4,
         trunk_depth=4,
         dropout_rate=0.08,
     ):
         super(TMONet, self).__init__()
 
-        # Branch Network: 处理q函数参数 (r1, r2, s1, s2, p0)
+        # Branch network: process q-function parameters.
         self.branch_net = self._build_mlp(
             input_dim=branch_input_dim,
             hidden_dim=hidden_dim1,
@@ -281,7 +281,7 @@ class TMONet(nn.Module):
             dropout_rate=dropout_rate,
         )
 
-        # Trunk Network: 处理空间坐标 (R, Z)
+        # Trunk network: process spatial coordinates.
         self.trunk_net = self._build_mlp(
             input_dim=trunk_input_dim,
             hidden_dim=hidden_dim2,
@@ -290,27 +290,27 @@ class TMONet(nn.Module):
             dropout_rate=dropout_rate,
         )
 
-        # 偏置项
+        # Bias term.
         self.bias = nn.Parameter(torch.zeros(1))
 
     def _build_mlp(self, input_dim, hidden_dim, output_dim, depth, dropout_rate=0.15):
         layers = []
         current_dim = input_dim
 
-        # 1. 只有当 depth >= 2 时，才有必要构建隐藏层
+        # 1. Build hidden layers only when depth >= 2.
         if depth >= 2:
             for i in range(depth - 1):
                 layers.append(nn.Linear(current_dim, hidden_dim))
                 layers.append(SinActivation())
 
-                # 只有不是最后一层隐藏层时才加 Dropout
-                # 最后一层隐藏层的索引是 depth - 2
+                # Add dropout except after the final hidden layer.
+                # The final hidden-layer index is depth - 2.
                 if i < depth - 2:
                     layers.append(nn.Dropout(dropout_rate))
 
                 current_dim = hidden_dim
 
-        # 2. 输出层（直接将最后的特征映射到物理量量级上）
+        # 2. Map final features directly to the physical-output scale.
         layers.append(nn.Linear(current_dim, output_dim))
 
         return nn.Sequential(*layers)
@@ -319,9 +319,9 @@ class TMONet(nn.Module):
         """
         Args:
             q_params: [batch_size, 5] - (r1, r2, s1, s2, p0)
-            spatial_coords: [batch_size, 2] - 空间坐标 (R, Z)
+            spatial_coords: [batch_size, 2] - Spatial coordinates (R, Z).
         Returns:
-            vr_pred: [batch_size, 1] - 预测的vr值
+            vr_pred: [batch_size, 1] - Predicted vr values.
         """
         branch_output = self.branch_net(q_params)  # [batch_size, output_dim]
         trunk_output = self.trunk_net(spatial_coords)  # [batch_size, output_dim]
@@ -339,10 +339,10 @@ class VRDataset(Dataset):
         self.spatial_coords = torch.FloatTensor(spatial_coords)
         self.vr_values = torch.FloatTensor(vr_values.reshape(-1, 1))
 
-        # 处理梯度：只有部分点有梯度信息，其余为NaN或0
+        # Process gradients available only for some points; others are NaN or zero.
         if gradients is not None:
             self.gradients = torch.FloatTensor(gradients).flatten()
-            # 创建梯度掩码：只有梯度值>0的点才需要计算梯度损失
+            # Mask gradient loss to points with gradients greater than zero.
             self.has_gradient = (self.gradients > 0) & (~torch.isnan(self.gradients))
         else:
             self.gradients = None
@@ -365,7 +365,7 @@ class VRDataset(Dataset):
 
 
 class DataPreprocessor:
-    """数据预处理器"""
+    """Data preprocessor."""
 
     def __init__(self):
         self.q_scaler = StandardScaler()
@@ -373,23 +373,23 @@ class DataPreprocessor:
         self.vr_scaler = AsymmetricMinMaxScaler(feature_range=(-1, 1))
         self.grad_scaler = AsymmetricMinMaxScaler(feature_range=(-1, 1))
 
-        self.eps = 1e-6  # 控制对数变换平滑度
+        self.eps = 1e-6  # Control log-transform smoothness.
         self.grad_eps = 1e-4
 
     def fit_transform(self, q_params, spatial_coords, vr_values, gradients=None):
-        """拟合并转换数据"""
-        # 1. 归一化q参数
+        """Fit preprocessing and transform data."""
+        # 1. Normalize q parameters.
         q_params_scaled = self.q_scaler.fit_transform(q_params)
 
-        # 2. 归一化空间坐标
+        # 2. Normalize spatial coordinates.
         coords_scaled = self.coord_scaler.fit_transform(spatial_coords)
 
-        # 3. 对vr值进行对数变换 + 归一化
+        # 3. Log-transform and normalize vr values.
         vr_values = np.array(vr_values).flatten()
         vr_log = np.sign(vr_values) * np.log1p(np.abs(vr_values) / self.eps)
         vr_scaled = self.vr_scaler.fit_transform(vr_log.reshape(-1, 1)).flatten()
 
-        # 4. 对梯度值进行相同的预处理（如果提供）
+        # 4. Apply the same preprocessing to gradients when provided.
         if gradients is not None:
             gradients = np.array(gradients).flatten()
             grad_log = np.sign(gradients) * np.log1p(np.abs(gradients) / self.grad_eps)
@@ -402,17 +402,17 @@ class DataPreprocessor:
         return q_params_scaled, coords_scaled, vr_scaled, grad_scaled
 
     def transform(self, q_params, spatial_coords, vr_values, gradients=None):
-        """转换新数据"""
-        # 使用已经拟合的scaler进行转换
+        """Transform new data."""
+        # Transform with the fitted scalers.
         q_params_scaled = self.q_scaler.transform(q_params)
         coords_scaled = self.coord_scaler.transform(spatial_coords)
 
-        # 对vr值应用相同的变换
+        # Apply the same transform to vr values.
         vr_values = np.array(vr_values).flatten()
         vr_log = np.sign(vr_values) * np.log1p(np.abs(vr_values) / self.eps)
         vr_scaled = self.vr_scaler.transform(vr_log.reshape(-1, 1)).flatten()
 
-        # 对梯度值应用相同的变换（如果提供）
+        # Apply the same transform to gradients when provided.
         if gradients is not None:
             gradients = np.array(gradients).flatten()
             grad_log = np.sign(gradients) * np.log1p(np.abs(gradients) / self.grad_eps)
@@ -423,23 +423,23 @@ class DataPreprocessor:
         return q_params_scaled, coords_scaled, vr_scaled, grad_scaled
 
     def inverse_transform_gradients(self, grad_scaled):
-        """将归一化后的梯度值反变换回原始尺度"""
-        # 1. 反归一化
+        """Inverse-transform normalized gradients to their original scale."""
+        # 1. Invert normalization.
         grad_log = self.grad_scaler.inverse_transform(
             grad_scaled.reshape(-1, 1)
         ).flatten()
 
-        # 2. 逆带符号对数变换
+        # 2. Invert the signed log transform.
         grad_original = np.sign(grad_log) * self.grad_eps * (np.expm1(np.abs(grad_log)))
 
         return grad_original
 
     def inverse_transform_vr(self, vr_scaled):
-        """将归一化后的 vr 值反变换回原始尺度"""
-        # 1. 反归一化
+        """Inverse-transform normalized vr values to their original scale."""
+        # 1. Invert normalization.
         vr_log = self.vr_scaler.inverse_transform(vr_scaled.reshape(-1, 1)).flatten()
 
-        # 2. 逆带符号对数变换
+        # 2. Invert the signed log transform.
         vr_original = np.sign(vr_log) * self.eps * (np.expm1(np.abs(vr_log)))
 
         return vr_original
@@ -447,7 +447,7 @@ class DataPreprocessor:
 
 def load_data_from_df(q_params_df, vr_folder_path, desc="加载数据"):
     """
-    根据传入的参数表，按工况加载并展开二维数据点
+    Load cases from the parameter table and expand their 2D field points.
     """
     all_q_params = []
     all_spatial_coords = []
@@ -455,7 +455,7 @@ def load_data_from_df(q_params_df, vr_folder_path, desc="加载数据"):
     all_gradients = []
 
     for i in tqdm(range(len(q_params_df)), desc=desc):
-        # 读取对应工况的采样数据
+        # Read sampled data for the corresponding case.
         row = q_params_df.iloc[i]
         folder_name = row.values[-1]
         folder_name = str(folder_name).replace("/", "__").replace("\\", "__")
@@ -466,23 +466,23 @@ def load_data_from_df(q_params_df, vr_folder_path, desc="加载数据"):
         vr = vr_df["Value"].values
         gradients = vr_df["Gradient"].values
 
-        # 获取对应的q参数
+        # Get the corresponding q parameters.
         q_params = row.values[:5]
 
-        # 为每个坐标点重复相同的q参数
+        # Repeat the same q parameters for every coordinate point.
         n_points = len(X)
         repeated_q_params = np.tile(q_params, (n_points, 1))
 
-        # 组合空间坐标
+        # Combine spatial coordinates.
         spatial_coords = np.column_stack([X, Z])
 
-        # 添加到总数据集
+        # Add to the aggregate dataset.
         all_q_params.append(repeated_q_params)
         all_spatial_coords.append(spatial_coords)
         all_vr_values.append(vr)
         all_gradients.append(gradients)
 
-    # 合并所有数据点
+    # Combine all data points.
     q_params_combined = np.vstack(all_q_params)
     coords_combined = np.vstack(all_spatial_coords)
     vr_combined = np.hstack(all_vr_values)
@@ -500,19 +500,19 @@ def train_model(
     device,
     num_epochs=1000,
     patience=60,
-    scheduler=None,  # 学习率调度器
-    grad_clip=1.0,  # 梯度裁剪阈值
+    scheduler=None,  # Learning-rate scheduler.
+    grad_clip=1.0,  # Gradient-clipping threshold.
 ):
-    """训练模型"""
+    """Train the model."""
     train_losses = []
     value_losses = []
     grad_losses = []
     val_losses = []
-    learning_rates = []  # 记录学习率变化
+    learning_rates = []  # Record learning-rate changes.
     best_val_loss = float("inf")
     patience_counter = 0
 
-    # 在训练循环开始前初始化计时列表
+    # Initialize timing records before training.
     epoch_times = []
 
     for epoch in range(num_epochs):
@@ -520,7 +520,7 @@ def train_model(
         epoch_start = time.time()
         criterion.set_epoch(epoch)
 
-        # 训练阶段
+        # Training phase.
         model.train()
         train_loss = 0.0
         v_loss = 0.0
@@ -528,7 +528,7 @@ def train_model(
         # accumulation_steps = 4
         # for i,(q_params, coords, vr_true) in train_loader:
         for batch_data in train_loader:
-            if len(batch_data) == 5:  # 有梯度信息和掩码
+            if len(batch_data) == 5:  # Gradient information and mask are available.
                 q_params, coords, vr_true, gradients, has_gradient = batch_data
                 q_params, coords, vr_true, gradients, has_gradient = (
                     q_params.to(device),
@@ -543,7 +543,7 @@ def train_model(
                 loss, value_loss, grad_loss = criterion(
                     vr_pred, vr_true, model, q_params, coords, gradients, has_gradient
                 )
-            else:  # 没有梯度信息
+            else:  # No gradient information.
                 q_params, coords, vr_true = batch_data
                 q_params, coords, vr_true = (
                     q_params.to(device),
@@ -565,20 +565,20 @@ def train_model(
             v_loss += value_loss.item()
             g_loss += grad_loss.item()
 
-            # 添加梯度裁剪
+            # Apply gradient clipping.
             # if grad_clip > 0:
             #     torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=grad_clip)
 
-        # 更新学习率（如果有调度器）
+        # Update the learning rate when a scheduler is configured.
         if scheduler is not None:
             if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-                # 对于ReduceLROnPlateau，需要传入验证loss
-                if epoch > 0:  # 至少有一个验证loss
+                # ReduceLROnPlateau requires validation loss.
+                if epoch > 0:  # At least one validation loss is available.
                     scheduler.step(val_losses[-1])
             else:
                 scheduler.step()
 
-            # 记录当前学习率
+            # Record the current learning rate.
             current_lr = optimizer.param_groups[0]["lr"]
             learning_rates.append(current_lr)
 
@@ -589,7 +589,7 @@ def train_model(
         g_loss /= len(train_loader)
         grad_losses.append(g_loss)
 
-        # 验证阶段
+        # Validation phase.
         model.eval()
         val_loss = 0.0
         with torch.no_grad():
@@ -618,7 +618,7 @@ def train_model(
             val_loss /= len(val_loader)
             val_losses.append(val_loss)
 
-        # 显示当前步信息
+        # Display current progress.
         lr_info = ""
         if scheduler is not None:
             current_lr = optimizer.param_groups[0]["lr"]
@@ -635,19 +635,19 @@ def train_model(
                 f"Epoch [{epoch}] - Train Loss: {train_loss:.6f}, Val Loss: {val_loss:.6f}{lr_info}, time_cost: {epoch_time:.2f}s"
             )
 
-        # 早停和模型保存
+        # Early stopping and model saving.
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             patience_counter = 0
 
-            # 处理并行模型的状态字典
+            # Handle the parallel model state dictionary.
             model_state_dict = model.state_dict()
             if isinstance(model, nn.DataParallel):
                 model_state_dict = model.module.state_dict()
             torch.save(
                 {
                     "epoch": epoch,
-                    "model_state_dict": model_state_dict,  # 使用处理后的状态字典
+                    "model_state_dict": model_state_dict,  # Use the processed state dictionary.
                     "optimizer_state_dict": optimizer.state_dict(),
                     "scheduler_state_dict": (
                         scheduler.state_dict() if scheduler else None
@@ -685,7 +685,7 @@ def train_model(
 
 
 def plot_training(train_losses, val_losses, learning_rates, value_losses, grad_losses):
-    """训练曲线图"""
+    """Plot training curves."""
 
     plt.rcParams["font.family"] = "sans-serif"
     plt.rcParams["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans"]
@@ -695,11 +695,11 @@ def plot_training(train_losses, val_losses, learning_rates, value_losses, grad_l
 
     fig, ax1 = plt.figure(figsize=(7, 4)), plt.gca()
 
-    # 左侧y轴：损失值
+    # Left y-axis: loss.
     ax1.set_xlabel("Epoch", fontsize=18)
     ax1.set_ylabel("Loss", color="#1f77b4", fontsize=18)
 
-    # 绘制损失曲线
+    # Plot loss curves.
     # line1 = ax1.plot(
     #     train_losses, label="Training Loss", color="#1f77b4", linewidth=2.5, alpha=0.9
     # )
@@ -721,7 +721,7 @@ def plot_training(train_losses, val_losses, learning_rates, value_losses, grad_l
     ax1.yaxis.set_major_formatter(plt.LogFormatter(10, labelOnlyBase=False))
     ax1.grid(True, alpha=0.2)
 
-    # 标记最佳验证损失点
+    # Mark the best validation-loss point.
     best_epoch = np.argmin(val_losses)
     best_val_loss = val_losses[best_epoch]
     ax1.scatter(
@@ -733,11 +733,11 @@ def plot_training(train_losses, val_losses, learning_rates, value_losses, grad_l
         label=f"Best Val Loss: {best_val_loss:.4f}",
     )
 
-    # 右侧y轴：学习率
+    # Right y-axis: learning rate.
     ax2 = ax1.twinx()
     ax2.set_ylabel("Learning Rate", color="#d62728", fontsize=12)
 
-    # 绘制学习率曲线
+    # Plot the learning-rate curve.
     line3 = ax2.plot(
         learning_rates,
         label="Learning Rate",
@@ -750,15 +750,15 @@ def plot_training(train_losses, val_losses, learning_rates, value_losses, grad_l
     ax2.set_yscale("log")
     ax2.yaxis.set_major_formatter(plt.LogFormatter(10, labelOnlyBase=False))
 
-    # 合并图例
+    # Combine legends.
     lines = line2 + line3 + line4 + line5
     labels = [l.get_label() for l in lines]
     ax1.legend(lines, labels, loc="upper right", fontsize=14)
 
-    # 添加标题和信息
+    # Add the title and information.
     # plt.title("TMONet Training Progress: Loss and Learning Rate", fontsize=18, pad=20)
 
-    # 添加信息文本框
+    # Add the information box.
     # info_text = (
     #     f"Training Loss: {train_losses[-1]:.6f}\nValidation Loss: {val_losses[-1]:.6f}"
     # )
@@ -781,7 +781,7 @@ def plot_training(train_losses, val_losses, learning_rates, value_losses, grad_l
 
 
 def plot_epoch_times(epoch_times):
-    """绘制epoch用时曲线"""
+    """Plot epoch-duration curves."""
     del epoch_times[0]
     plt.figure(figsize=(10, 6))
     plt.plot(epoch_times, color="#2E86AB", linewidth=2.5)
@@ -790,7 +790,7 @@ def plot_epoch_times(epoch_times):
     plt.title("Epoch Training Time")
     plt.grid(True, alpha=0.3)
 
-    # 添加统计信息
+    # Add summary statistics.
     avg_time = sum(epoch_times) / len(epoch_times)
     total_time = sum(epoch_times)
     plt.text(
@@ -820,7 +820,7 @@ if __name__ == "__main__":
     q_params_file_path = "Double_Tearing_Train_Database_by_p0.csv"
 
     q_params_df_full = pd.read_csv(q_params_file_path)
-    # 将独立的物理算例划分为训练算例和验证算例 (80% / 20%)
+    # Split independent physical cases into training and validation sets (80/20).
     train_cases_df, val_cases_df = train_test_split(
         q_params_df_full, test_size=0.2, random_state=42
     )
@@ -828,7 +828,7 @@ if __name__ == "__main__":
         f"训练集包含 {len(train_cases_df)} 个算例，验证集包含 {len(val_cases_df)} 个算例"
     )
 
-    # 分别加载并展开训练集和验证集的数据点
+    # Load and expand training and validation points separately.
     print("\nExtracting training points...")
     q_train_raw, coords_train_raw, vr_train_raw, grad_train_raw = load_data_from_df(
         train_cases_df, vr_folder_path, desc="加载训练集"
@@ -839,17 +839,17 @@ if __name__ == "__main__":
     )
 
     preprocessor = DataPreprocessor()
-    # 只在训练集上拟合（fit）和转换（transform）
+    # Fit and transform only the training set.
     q_train, coords_train, vr_train, grad_train = preprocessor.fit_transform(
         q_train_raw, coords_train_raw, vr_train_raw, grad_train_raw
     )
     torch.save(preprocessor, "TMO_preprocessor_CE1.pth")
-    # 验证集只能使用训练集的标准进行转换（transform）
+    # Transform validation data using training-set preprocessing only.
     q_val, coords_val, vr_val, grad_val = preprocessor.transform(
         q_val_raw, coords_val_raw, vr_val_raw, grad_val_raw
     )
 
-    # 创建数据集和数据加载器
+    # Create datasets and data loaders.
     train_dataset = VRDataset(q_train, coords_train, vr_train, grad_train)
     val_dataset = VRDataset(q_val, coords_val, vr_val, grad_val)
 
@@ -857,10 +857,10 @@ if __name__ == "__main__":
         train_dataset,
         batch_size=2048,
         shuffle=True,
-        num_workers=16,  # 添加多进程数据加载
-        pin_memory=True,  # 启用锁页内存，加速GPU传输
-        persistent_workers=True,  # 保持worker进程，避免重复创建
-        prefetch_factor=2,  # 预取更多batch
+        num_workers=16,  # Enable multiprocess loading.
+        pin_memory=True,  # Pin memory to accelerate GPU transfers.
+        persistent_workers=True,  # Keep workers alive between epochs.
+        prefetch_factor=2,  # Prefetch additional batches.
     )
     val_loader = DataLoader(
         val_dataset,
@@ -872,39 +872,39 @@ if __name__ == "__main__":
         prefetch_factor=2,
     )
 
-    # 初始化模型
+    # Initialize the model.
     model = TMONet(
         branch_input_dim=5,  # r1, r2, s1, s2, p0
         trunk_input_dim=2,  # R, Z
-        hidden_dim1=200,  # Brunch 隐藏层大小
-        hidden_dim2=110,  # Trunk 隐藏层大小
-        output_dim=90,  # 输出内积层大小
-        branch_depth=4,  # 特别注意：这里的depth是实际隐藏层数+1
+        hidden_dim1=200,  # Branch hidden dimension.
+        hidden_dim2=110,  # Trunk hidden dimension.
+        output_dim=90,  # Inner-product output dimension.
+        branch_depth=4,  # depth equals the hidden-layer count plus one.
         trunk_depth=4,
         dropout_rate=0.08,
     ).to(device)
 
-    # 启用数据并行 - 仅在多卡机器启用
+    # Enable data parallelism only on multi-GPU machines.
     # if torch.cuda.device_count() > 1:
-    #     print(f"使用 {torch.cuda.device_count()} 个GPU进行训练")
+    #     print(f"Training with {torch.cuda.device_count()} GPUs.")
     #     model = nn.DataParallel(model)
 
-    # 损失函数和优化器
+    # Loss function and optimizer.
     criterion = nn.MSELoss()
     optimizer = torch.optim.AdamW(
         model.parameters(), lr=1e-3, weight_decay=5e-4, betas=(0.9, 0.999)
     )
 
-    # 添加学习率调度
+    # Configure learning-rate scheduling.
     scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
         optimizer,
         mode="min",
-        factor=0.5,  # 学习率减小因子
-        patience=10,  # epoch 忍耐值
-        min_lr=1e-6,  # 最小学习率
+        factor=0.5,  # Learning-rate reduction factor.
+        patience=10,  # Epoch patience.
+        min_lr=1e-6,  # Minimum learning rate.
     )
 
-    # 训练模型
+    # Train the model.
     print("Starting training...")
     train_losses, val_losses, learning_rates, epoch_times, value_losses, grad_losses = (
         train_model(
@@ -913,21 +913,21 @@ if __name__ == "__main__":
             val_loader=val_loader,
             criterion=StructuralLoss(
                 alpha_start=0,
-                alpha_end=0.15,  # 最终梯度权重
-                start_epoch=100,  # 100个epoch后开始引入梯度约束
-                transition_epochs=300,  # 线性过渡区间长
+                alpha_end=0.15,  # Final gradient weight.
+                start_epoch=100,  # Introduce gradient constraints after 100 epochs.
+                transition_epochs=300,  # Length of the linear transition.
                 preprocessor=preprocessor,
-            ),  # 加入梯度相似性损失
+            ),  # Add gradient-similarity loss.
             optimizer=optimizer,
             device=device,
             num_epochs=1000,
             patience=60,
             scheduler=scheduler,
-            grad_clip=1.0,  # 梯度裁剪阈值
+            grad_clip=1.0,  # Gradient-clipping threshold.
         )
     )
 
-    # 保存训练数据
+    # Save training records.
     csv_path = "losses_info_CE5.csv"
     df = pd.DataFrame(
         {
@@ -948,7 +948,7 @@ if __name__ == "__main__":
     # value_losses = df_loaded["value_losses"].tolist()
     # grad_losses = df_loaded["grad_losses"].tolist()
 
-    # 绘制训练曲线
+    # Plot training curves.
     plot_training(train_losses, val_losses, learning_rates, value_losses, grad_losses)
     # plot_epoch_times(epoch_times)
     print("Training completed!")

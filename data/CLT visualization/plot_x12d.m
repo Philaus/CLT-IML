@@ -1,4 +1,4 @@
-% 绘制扰动量x1的截面演化
+% Plot the cross-sectional evolution of perturbation x1.
 clear;
 mx=256;
 mz=mx;
@@ -28,7 +28,7 @@ for i=1:length(plot_case)
     % xmax=max(xx);
     % zmin=min(zz);
     % zmax=max(zz);
-    % 画框
+    % Draw the boundary.
     xmin=1.4;
     xmax=2.3;
     zmin=-0.9;

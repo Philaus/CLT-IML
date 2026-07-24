@@ -12,8 +12,8 @@ plt.rcParams["font.sans-serif"] = [
     "SimHei",
     "Microsoft YaHei",
     "DejaVu Sans",
-]  # 设置中文字体
-plt.rcParams["axes.unicode_minus"] = False  # 解决负号显示问题
+]  # Configure fonts that support Chinese text.
+plt.rcParams["axes.unicode_minus"] = False  # Render minus signs correctly.
 
 
 def extract_data(folder_name, index):
@@ -61,14 +61,14 @@ def extract_data(folder_name, index):
 
 def process_data(root_dir="."):
     """
-    在根目录下遍历所有文件夹，处理每个数据文件
+    Traverse folders under the root directory and process each data file.
 
     Args:
-        root_dir: 根目录路径，默认为当前目录
+        root_dir: Root-directory path; defaults to the current directory.
     """
     root_path = Path(root_dir)
 
-    # 查找所有包含 energy.dat文件的文件夹
+    # Find all folders containing an energy.dat file.
     energy_files = list(root_path.rglob("energy.dat"))
 
     if not energy_files:
@@ -78,13 +78,13 @@ def process_data(root_dir="."):
     print(f"检索到 {len(energy_files)} 组文件\n\n")
     for file_path in energy_files:
         try:
-            # 获取相对路径（用于标识不同的算例）
+            # Get the relative path used to identify each case.
             relative_path = file_path.relative_to(root_path)
             folder_name = str(relative_path.parent)
 
             print(f"开始处理: {folder_name}")
 
-            # 加载平衡文件
+            # Load the equilibrium file.
             qpg = np.loadtxt(f"{folder_name}/q_p_g.dat")
             q = qpg[:, 2]
             psi = qpg[:, 1]
@@ -92,14 +92,14 @@ def process_data(root_dir="."):
             psiN = -(psi - psi[0]) / psi[0]
             r = np.sqrt(psiN)
 
-            # 有理面参数模块
+            # Rational-surface parameter calculation.
             solutions = []
             rational_surface = 2
             for i in range(len(q) - 1):
                 if (q[i] - rational_surface) * (
                     q[i + 1] - rational_surface
-                ) < 0:  # 检测跨过有理面的区间
-                    # 在该区间内插值求精确解
+                ) < 0:  # Detect an interval that crosses the rational surface.
+                    # Interpolate within the interval to obtain the precise root.
                     interp_func = interpolate.interp1d(q[i : i + 2], r[i : i + 2])
                     solutions.append(interp_func(rational_surface))
                     if len(solutions) == 2:
@@ -112,7 +112,7 @@ def process_data(root_dir="."):
             else:
                 print("  没有检测到双磁剪切")
 
-            # 判断压强崩塌类型
+            # Determine the pressure-crash type.
             folder_path = Path(folder_name)
             tk_files = [f for f in folder_path.glob("x12d*") if len(f.stem) == 7]
             count = len(tk_files)
@@ -138,9 +138,9 @@ def process_data(root_dir="."):
                 p_axis_mean, time, crash_percentage, index, index_window, folder_name
             )
 
-            # 存储结果
+            # Store the results.
             csv_file = "pressure_crash_cls.csv"
-            # 如果文件不存在，先写入表头
+            # Write the header first if the output file does not exist.
             if not os.path.exists(csv_file):
                 with open(csv_file, "w", newline="") as f:
                     writer = csv.writer(f)
@@ -155,7 +155,7 @@ def process_data(root_dir="."):
                             "folder_name",
                         ]
                     )
-            # 追加数据行
+            # Append the data row.
             with open(csv_file, "a", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(
@@ -178,12 +178,12 @@ def plot_pressure_with_detection(
     p, time, crash_percentage, drop_index, time_window, folder_name
 ):
     """
-    绘制压强图并标注状态和骤降位置
+    Plot pressure and annotate the state and abrupt-drop location.
     """
     plt.figure(figsize=(12, 6))
     plt.plot(time, p, "b-", linewidth=2, label="中心压强")
 
-    # 设置标题和标签
+    # Set the title and labels.
     plt.title(f"{folder_name},crash_rate={crash_percentage:.1%}", fontsize=14)
     plt.xlabel("时间", fontsize=12)
     plt.ylabel("中心压强", fontsize=12)
@@ -215,35 +215,35 @@ def split_test_data():
     random.seed(42)
 
     df = pd.read_csv("pressure_crash_cls.csv")
-    # 随机选择10%的行作为测试集
+    # Randomly select 10% of rows for the test set.
     total_rows = len(df)
-    test_size = max(1, int(total_rows * 0.1))  # 确保至少有一行
+    test_size = max(1, int(total_rows * 0.1))  # Ensure at least one row.
     test_indices = random.sample(range(total_rows), test_size)
 
-    # 提取测试集数据
+    # Extract the test-set data.
     test_df = df.iloc[test_indices].copy()
 
-    # 从原始数据框中删除测试集数据
+    # Remove the test-set rows from the original DataFrame.
     train_df = df.drop(test_indices).reset_index(drop=True)
 
-    # 保存训练集数据（删除测试集后的数据）
+    # Save the training data after removing the test set.
     train_df.to_csv("pressure_crash_cls.csv", index=False)
-    # 保存测试集数据
+    # Save the test-set data.
     test_df.to_csv("pressure_test.csv", index=False)
-    # 创建测试集文件夹
+    # Create the test-set folder.
     test_folder = "pressure_test"
     os.makedirs(test_folder, exist_ok=True)
 
-    # 移动对应的CSV和PNG文件
+    # Move the corresponding CSV and PNG files.
     data_frame_folder = "./pressure"
 
     moved_files = []
     for folder_name in test_df["folder_name"]:
         folder_name = folder_name.replace("/", "__").replace("\\", "__")
-        # 构建源文件路径
+        # Build the source-file path.
         png_source = os.path.join(data_frame_folder, f"{folder_name}.png")
         png_target = os.path.join(test_folder, f"{folder_name}.png")
-        # 移动文件
+        # Move the file.
         if os.path.exists(png_source):
             shutil.move(png_source, png_target)
             moved_files.append(f"{folder_name}.png")

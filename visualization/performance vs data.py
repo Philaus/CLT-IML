@@ -12,7 +12,7 @@ def plot_nature_style_lines(excel_path):
 
     plt.rcParams["font.family"] = "sans-serif"
     plt.rcParams["font.sans-serif"] = ["Arial", "Helvetica", "DejaVu Sans"]
-    plt.rcParams["axes.unicode_minus"] = False  # 正常显示负号
+    plt.rcParams["axes.unicode_minus"] = False  # Render minus signs correctly.
 
     nature_colors = ["#2A729E", "#D55E00", "#009E73", "#56B4E9"]
     line_styles = ["-", "--", "-.", ":"]
@@ -49,29 +49,29 @@ def plot_nature_style_lines(excel_path):
     ax.set_ylim(1, 20)
     ax.yaxis.set_major_locator(MultipleLocator(2))
 
-    # 调整刻度字号与方向（Nature 规范：刻度朝内，线条加粗）
+    # Adjust tick size and direction: inward ticks and heavier lines.
     ax.tick_params(
         axis="both", which="major", direction="in", labelsize=10, width=1.0, length=4
     )
     ax.tick_params(axis="both", which="minor", direction="in", width=0.8, length=2)
     # ax.minorticks_on()
 
-    # 四周黑边框加粗（去除 Matplotlib 默认的灰色或过细边框）
+    # Use heavier black borders instead of Matplotlib's default light spines.
     for spine in ax.spines.values():
         spine.set_linewidth(1.0)
         spine.set_color("black")
 
-    # 3. 图例（Legend）美化：去掉边框，置于最优位置
+    # 3. Remove the legend border and place it automatically.
     ax.legend(frameon=False, fontsize=9, loc="best", handlelength=2.5)
 
     ax.grid(
         visible=True, 
-        which='major',       # 只对主刻度线绘制网格
-        axis='both',         # 横向和纵向都绘制
-        color='#E5E5E5',     # 极淡的灰色
-        linestyle='--',      # 虚线
-        linewidth=0.6,       # 极细的线宽
-        zorder=0             # 将网格线置于线条最底层，防止遮挡数据
+        which='major',       # Draw the grid only at major ticks.
+        axis='both',         # Draw on both axes.
+        color='#E5E5E5',     # Very light gray.
+        linestyle='--',      # Dashed line.
+        linewidth=0.6,       # Thin line.
+        zorder=0             # Keep grid lines behind the data.
     )
 
     box_text = "Zero-Shot Performance (MRE):\n"
